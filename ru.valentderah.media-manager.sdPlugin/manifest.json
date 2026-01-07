@@ -34,6 +34,34 @@
 					"TitleAlignment": "bottom"
 				}
 			]
+		},
+		{
+			"Name": "Media Next",
+			"UUID": "ru.valentderah.media-manager.media-next",
+			"Icon": "imgs/actions/media/icon",
+			"Tooltip": "Skip to next track.",
+			"Controllers": [
+				"Keypad"
+			],
+			"States": [
+				{
+					"TitleAlignment": "middle"
+				}
+			]
+		},
+		{
+			"Name": "Media Previous",
+			"UUID": "ru.valentderah.media-manager.media-previous",
+			"Icon": "imgs/actions/media/icon",
+			"Tooltip": "Skip to previous track.",
+			"Controllers": [
+				"Keypad"
+			],
+			"States": [
+				{
+					"TitleAlignment": "middle"
+				}
+			]
 		}
 	],
 	"Category": "Media Manager",

@@ -14,10 +14,20 @@ class Program
 {
     static async Task Main(string[] args)
     {
-        if (args.Length > 0 && args[0] == "toggle")
+        if (args.Length > 0)
         {
-            await TogglePlayPauseAsync();
-            return;
+            switch (args[0])
+            {
+                case "toggle":
+                    await TogglePlayPauseAsync();
+                    return;
+                case "next":
+                    await NextTrackAsync();
+                    return;
+                case "previous":
+                    await PreviousTrackAsync();
+                    return;
+            }
         }
 
         try
@@ -192,7 +202,7 @@ class Program
         return info;
     }
 
-    static async Task TogglePlayPauseAsync()
+    static async Task<GlobalSystemMediaTransportControlsSession?> GetActiveSessionAsync()
     {
         try
         {
@@ -211,11 +221,52 @@ class Program
                 }
             }
 
-            activeSession ??= sessions.FirstOrDefault();
+            return activeSession ?? sessions.FirstOrDefault();
+        }
+        catch
+        {
+            return null;
+        }
+    }
 
+    static async Task TogglePlayPauseAsync()
+    {
+        try
+        {
+            var activeSession = await GetActiveSessionAsync();
             if (activeSession != null)
             {
                 await activeSession.TryTogglePlayPauseAsync();
+            }
+        }
+        catch
+        {
+        }
+    }
+
+    static async Task NextTrackAsync()
+    {
+        try
+        {
+            var activeSession = await GetActiveSessionAsync();
+            if (activeSession != null)
+            {
+                await activeSession.TrySkipNextAsync();
+            }
+        }
+        catch
+        {
+        }
+    }
+
+    static async Task PreviousTrackAsync()
+    {
+        try
+        {
+            var activeSession = await GetActiveSessionAsync();
+            if (activeSession != null)
+            {
+                await activeSession.TrySkipPreviousAsync();
             }
         }
         catch

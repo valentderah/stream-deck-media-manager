@@ -166,3 +166,29 @@ export async function toggleMediaPlayPause(): Promise<MediaManagerResult> {
 	};
 }
 
+export async function nextMedia(): Promise<MediaManagerResult> {
+	const result = await executeManager(['next']);
+
+	if (!result.success) {
+		return result;
+	}
+
+	return {
+		success: true,
+		data: {} as MediaInfo
+	};
+}
+
+export async function previousMedia(): Promise<MediaManagerResult> {
+	const result = await executeManager(['previous']);
+
+	if (!result.success) {
+		return result;
+	}
+
+	return {
+		success: true,
+		data: {} as MediaInfo
+	};
+}
+

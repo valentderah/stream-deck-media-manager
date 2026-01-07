@@ -2,15 +2,14 @@ import streamDeck from "@elgato/streamdeck";
 
 import { IncrementCounter } from "./actions/increment-counter";
 import { MediaInfoAction } from "./actions/media-info";
+import { MediaNextAction } from "./actions/media-next";
+import { MediaPreviousAction } from "./actions/media-previous";
 
-// We can enable "trace" logging so that all messages between the Stream Deck, and the plugin are recorded. When storing sensitive information
 streamDeck.logger.setLevel("trace");
 
-// Register the increment action.
 streamDeck.actions.registerAction(new IncrementCounter());
-
-// Register the media info action.
 streamDeck.actions.registerAction(new MediaInfoAction());
+streamDeck.actions.registerAction(new MediaNextAction());
+streamDeck.actions.registerAction(new MediaPreviousAction());
 
-// Finally, connect to the Stream Deck.
 streamDeck.connect();
