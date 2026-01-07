@@ -1,17 +1,6 @@
 import { action, DialAction, DidReceiveSettingsEvent, KeyAction, KeyDownEvent, SingletonAction, WillAppearEvent, WillDisappearEvent } from '@elgato/streamdeck';
-import { execFile } from 'child_process';
-import path from 'path';
 import { Marquee } from '../utils/marquee';
-
-type MediaInfo = {
-	Title?: string;
-	Artist?: string;
-	Artists?: string[];
-	AlbumArtist?: string;
-	AlbumTitle?: string;
-	Status?: 'Playing' | 'Paused' | 'Stopped';
-	CoverArtBase64?: string;
-};
+import { getMediaInfo, toggleMediaPlayPause, type MediaInfo, type MediaManagerErrorType } from '../utils/media-manager';
 
 type MediaInfoSettings = {
 	showTitle?: boolean;
@@ -21,17 +10,13 @@ type MediaInfoSettings = {
 @action({ UUID: 'ru.valentderah.media-manager.media-info' })
 export class MediaInfoAction extends SingletonAction<MediaInfoSettings> {
 	private static readonly UPDATE_INTERVAL_MS = 1000;
-	private static readonly MARQUEE_INTERVAL_MS = 1000;
-	private static readonly MARQUEE_MAX_LENGTH = 10;
-	private static readonly MARQUEE_SEPARATOR = '   ';
-
 
 	private static readonly DEFAULT_SETTINGS: MediaInfoSettings = {
 		showTitle: true,
 		showArtists: true
 	};
-	private static readonly HELPER_EXE_NAME = 'MediaManagerHelper.exe';
-	private static readonly ERROR_MESSAGES = {
+
+	private static readonly ERROR_MESSAGES: Record<MediaManagerErrorType, string> = {
 		FILE_NOT_FOUND: 'Error\nFile Not\nFound',
 		HELPER_ERROR: 'Error\nHelper',
 		PARSING_ERROR: 'Error\nParsing',
@@ -39,7 +24,6 @@ export class MediaInfoAction extends SingletonAction<MediaInfoSettings> {
 	} as const;
 
 	private intervalId: NodeJS.Timeout | undefined;
-	private marqueeIntervalId: NodeJS.Timeout | undefined;
 	private currentAction: DialAction<MediaInfoSettings> | KeyAction<MediaInfoSettings> | undefined;
 	private readonly titleMarquee: Marquee;
 	private currentMediaInfo: MediaInfo | null = null;
@@ -47,10 +31,7 @@ export class MediaInfoAction extends SingletonAction<MediaInfoSettings> {
 
 	constructor() {
 		super();
-		this.titleMarquee = new Marquee(
-			MediaInfoAction.MARQUEE_MAX_LENGTH,
-			MediaInfoAction.MARQUEE_SEPARATOR
-		);
+		this.titleMarquee = new Marquee();
 	}
 
 	override async onWillAppear(ev: WillAppearEvent<MediaInfoSettings>): Promise<void> {
@@ -59,18 +40,23 @@ export class MediaInfoAction extends SingletonAction<MediaInfoSettings> {
 		await this.updateMediaInfo(ev.action);
 		this.startUpdateInterval();
 		if (this.settings.showTitle) {
-			this.startMarquee();
+			this.titleMarquee.start(() => {
+				if (this.currentAction) {
+					this.updateMarqueeTitle(this.currentAction);
+				}
+			});
 		}
 	}
 
 	override onWillDisappear(ev: WillDisappearEvent<MediaInfoSettings>): void | Promise<void> {
 		this.stopUpdateInterval();
-		this.stopMarquee();
+		this.titleMarquee.stop();
 		this.currentAction = undefined;
 		this.currentMediaInfo = null;
 	}
 
 	override async onKeyDown(ev: KeyDownEvent<MediaInfoSettings>): Promise<void> {
+		await toggleMediaPlayPause();
 		await this.updateMediaInfo(ev.action);
 	}
 
@@ -82,12 +68,18 @@ export class MediaInfoAction extends SingletonAction<MediaInfoSettings> {
 		};
 
 		if (this.settings.showTitle && !wasTitleEnabled) {
-			this.startMarquee();
+			if (this.currentAction) {
+				this.titleMarquee.start(() => {
+					if (this.currentAction) {
+						this.updateMarqueeTitle(this.currentAction);
+					}
+				});
+			}
 		} else if (!this.settings.showTitle && wasTitleEnabled) {
-			this.stopMarquee();
+			this.titleMarquee.stop();
 		}
 
-		if (this.currentAction && this.currentMediaInfo) {
+		if (this.currentAction) {
 			await this.updateMarqueeTitle(this.currentAction);
 		}
 	}
@@ -100,102 +92,33 @@ export class MediaInfoAction extends SingletonAction<MediaInfoSettings> {
 		};
 	}
 
-	private getHelperPath(): string {
-		return path.join(process.cwd(), 'bin', MediaInfoAction.HELPER_EXE_NAME);
-	}
-
-	private async checkHelperExists(helperPath: string): Promise<boolean> {
-		try {
-			const fs = await import('fs/promises');
-			await fs.access(helperPath);
-			return true;
-		} catch {
-			console.error(`${MediaInfoAction.HELPER_EXE_NAME} not found at: ${helperPath}`);
-			console.error('Please build the C# project using: cd MediaManagerHelper && build.bat');
-			return false;
-		}
-	}
-
-	private async handleHelperError(
-		action: DialAction<MediaInfoSettings> | KeyAction<MediaInfoSettings>,
-		error: Error & { code?: string | number | null },
-		helperPath: string
-	): Promise<void> {
-		if (error.code === 'ENOENT') {
-			console.error(`${MediaInfoAction.HELPER_EXE_NAME} not found at: ${helperPath}`);
-			console.error('Please build the C# project and copy MediaManagerHelper.exe to the bin folder.');
-			await action.setTitle(MediaInfoAction.ERROR_MESSAGES.FILE_NOT_FOUND);
-		} else {
-			const codeStr = error.code != null ? ` (code: ${error.code})` : '';
-			console.error(`Helper error: ${error.message}${codeStr}`);
-			await action.setTitle(MediaInfoAction.ERROR_MESSAGES.HELPER_ERROR);
-		}
-	}
-
-	private async processMediaInfo(
-		action: DialAction<MediaInfoSettings> | KeyAction<MediaInfoSettings>,
-		stdout: string
-	): Promise<void> {
-		try {
-			const info: MediaInfo = JSON.parse(stdout);
-
-			if (info.CoverArtBase64) {
-				await action.setImage(`data:image/png;base64,${info.CoverArtBase64}`);
-			}
-
-			const titleChanged = this.currentMediaInfo?.Title !== info.Title;
-			this.currentMediaInfo = info;
-
-			if (titleChanged && info.Title) {
-				this.titleMarquee.setText(info.Title);
-			}
-
-			await this.updateMarqueeTitle(action);
-		} catch (parseError) {
-			console.error('Failed to parse JSON from helper:', parseError);
-			await action.setTitle(MediaInfoAction.ERROR_MESSAGES.PARSING_ERROR);
-		}
-	}
-
 	private async updateMediaInfo(action: DialAction<MediaInfoSettings> | KeyAction<MediaInfoSettings>): Promise<void> {
-		const helperPath = this.getHelperPath();
+		const result = await getMediaInfo();
 
-		if (!(await this.checkHelperExists(helperPath))) {
+		if (!result.success) {
 			this.currentMediaInfo = null;
-			this.stopMarquee();
-			await action.setTitle(MediaInfoAction.ERROR_MESSAGES.FILE_NOT_FOUND);
+			this.titleMarquee.stop();
+			await action.setImage('');
+			await action.setTitle(MediaInfoAction.ERROR_MESSAGES[result.error.type]);
 			return;
 		}
 
-		return new Promise<void>((resolve, reject) => {
-			execFile(helperPath, (error, stdout, stderr) => {
-				(async () => {
-					try {
-						if (error) {
-							await this.handleHelperError(action, error, helperPath);
-							resolve();
-							return;
-						}
+		const info = result.data;
 
-						if (stderr) {
-							resolve();
-							return;
-						}
+		if (info.CoverArtBase64) {
+			await action.setImage(`data:image/png;base64,${info.CoverArtBase64}`);
+		} else {
+			await action.setImage('');
+		}
 
-						if (stdout) {
-							await this.processMediaInfo(action, stdout);
-						} else {
-							this.currentMediaInfo = null;
-							this.titleMarquee.setText('Nothing Playing');
-							await action.setTitle(MediaInfoAction.ERROR_MESSAGES.NOTHING_PLAYING);
-						}
-						resolve();
-					} catch (err) {
-						reject(err);
-					}
-				})();
-			});
-		});
+		const titleChanged = this.currentMediaInfo?.Title !== info.Title;
+		this.currentMediaInfo = info;
+
+		if (titleChanged && info.Title) {
+			this.titleMarquee.setText(info.Title);
+		}
+
+		await this.updateMarqueeTitle(action);
 	}
 
 	private startUpdateInterval(): void {
@@ -214,21 +137,6 @@ export class MediaInfoAction extends SingletonAction<MediaInfoSettings> {
 		}
 	}
 
-	private startMarquee(): void {
-		this.stopMarquee();
-		this.marqueeIntervalId = setInterval(() => {
-			if (this.currentAction && this.currentMediaInfo) {
-				this.updateMarqueeTitle(this.currentAction);
-			}
-		}, MediaInfoAction.MARQUEE_INTERVAL_MS);
-	}
-
-	private stopMarquee(): void {
-		if (this.marqueeIntervalId) {
-			clearInterval(this.marqueeIntervalId);
-			this.marqueeIntervalId = undefined;
-		}
-	}
 
 	private getArtistText(info: MediaInfo): string {
 		if (info.Artists && info.Artists.length > 0) {
@@ -254,9 +162,13 @@ export class MediaInfoAction extends SingletonAction<MediaInfoSettings> {
 		return parts.length > 0 ? parts.join('\n') : null;
 	}
 
-	private async updateMarqueeTitle(action: DialAction<MediaInfoSettings> | KeyAction<MediaInfoSettings>): Promise<void> {
+	private async updateMarqueeTitle(action: DialAction<MediaInfoSettings> | KeyAction<MediaInfoSettings> | undefined): Promise<void> {
+		if (!action) {
+			return;
+		}
+
 		if (!this.currentMediaInfo) {
-			await action.setTitle('');
+			await action.setTitle(MediaInfoAction.ERROR_MESSAGES.NOTHING_PLAYING);
 			return;
 		}
 

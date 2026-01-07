@@ -14,7 +14,8 @@ build/
 
 # Stream Deck files
 *.sdPlugin/bin/
-!*.sdPlugin/bin/MediaManagerHelper.exe
+!*.sdPlugin/bin/MediaManager.exe
+!*.sdPlugin/bin/MediaManager
 *.sdPlugin/logs/
 *.sdPlugin/*.js.map
 

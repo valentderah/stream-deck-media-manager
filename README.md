@@ -34,7 +34,7 @@ npm run build
 ```
 
 Это автоматически:
-- Соберет C# утилиту `MediaManagerHelper.exe`
+- Соберет C# утилиту `MediaManager.exe`
 - Скопирует её в папку плагина
 - Соберет TypeScript код в `ru.valentderah.media-manager.sdPlugin/bin/plugin.js`
 
@@ -95,19 +95,26 @@ npm run watch
 
 ```
 media-manager/
-├── MediaManagerHelper/          # C# утилита для получения информации о медиа
-│   ├── Program.cs
-│   ├── MediaManagerHelper.csproj
-│   └── build.bat
+├── MediaManager/                # Утилита для получения информации о медиа
+│   └── platforms/               # Платформенные реализации
+│       ├── windows/             # Реализация для Windows
+│       │   ├── Program.cs
+│       │   ├── MediaManager.Windows.csproj
+│       │   └── build.bat
+│       └── macos/               # Реализация для macOS (в разработке)
+│           └── README.md
 ├── src/
 │   ├── actions/
 │   │   ├── increment-counter.ts # Пример действия (счетчик)
 │   │   └── media-info.ts        # Действие для отображения информации о медиа
+│   ├── utils/
+│   │   ├── marquee.ts           # Логика бегущей строки
+│   │   └── media-manager.ts     # Платформенно-зависимый модуль работы с медиа
 │   └── plugin.ts                # Главный файл плагина
 └── ru.valentderah.media-manager.sdPlugin/
     ├── bin/
     │   ├── plugin.js            # Скомпилированный JavaScript
-    │   └── MediaManagerHelper.exe # C# утилита
+    │   └── MediaManager.exe     # Утилита (Windows) или MediaManager (macOS)
     └── manifest.json            # Манифест плагина
 ```
 
@@ -115,13 +122,13 @@ media-manager/
 
 ### Плагин не загружается
 
-- Убедитесь, что `MediaManagerHelper.exe` находится в папке `bin/`
+- Убедитесь, что `MediaManager.exe` находится в папке `bin/`
 - Проверьте логи в папке `logs/`
 - Убедитесь, что Node.js версии 20 установлен
 
 ### Ошибка "ENOENT" или "File Not Found"
 
-Эта ошибка означает, что файл `MediaManagerHelper.exe` не найден. Решение:
+Эта ошибка означает, что файл `MediaManager.exe` не найден. Решение:
 
 1. Убедитесь, что вы собрали проект:
    ```bash
@@ -135,19 +142,19 @@ media-manager/
 
 3. Проверьте, что файл существует:
    ```cmd
-   dir "ru.valentderah.media-manager.sdPlugin\bin\MediaManagerHelper.exe"
+   dir "ru.valentderah.media-manager.sdPlugin\bin\MediaManager.exe"
    ```
 
 4. Если файл все еще отсутствует, выполните сборку вручную:
    ```cmd
-   cd MediaManagerHelper
+   cd MediaManager\platforms\windows
    build.bat
    ```
 
 ### Информация о медиа не отображается
 
 - Убедитесь, что медиа-плеер запущен и воспроизводит музыку
-- Проверьте, что `MediaManagerHelper.exe` работает (запустите его вручную)
+- Проверьте, что `MediaManager.exe` работает (запустите его вручную)
 - Проверьте логи плагина
 
 ### Ошибки компиляции C#

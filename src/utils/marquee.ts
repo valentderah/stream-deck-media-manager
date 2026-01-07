@@ -1,14 +1,24 @@
+export const DEFAULT_MARQUEE_MAX_LENGTH = 10;
+export const DEFAULT_MARQUEE_SEPARATOR = '   ';
+export const DEFAULT_MARQUEE_INTERVAL_MS = 1000;
+
 export class Marquee {
 	private position: number = 0;
 	private text: string = '';
 	private readonly maxLength: number;
 	private readonly separator: string;
 	private intervalId: NodeJS.Timeout | undefined;
-	private updateCallback: (() => void) | undefined;
+	private updateCallback: (() => void | Promise<void>) | undefined;
+	private intervalMs: number;
 
-	constructor(maxLength: number = 20, separator: string = '   ') {
+	constructor(
+		maxLength: number = DEFAULT_MARQUEE_MAX_LENGTH,
+		separator: string = DEFAULT_MARQUEE_SEPARATOR,
+		intervalMs: number = DEFAULT_MARQUEE_INTERVAL_MS
+	) {
 		this.maxLength = maxLength;
 		this.separator = separator;
+		this.intervalMs = intervalMs;
 	}
 
 	setText(text: string): void {
@@ -32,14 +42,14 @@ export class Marquee {
 		return frame;
 	}
 
-	start(intervalMs: number, callback: () => void): void {
+	start(callback: () => void | Promise<void>): void {
 		this.stop();
 		this.updateCallback = callback;
 		this.intervalId = setInterval(() => {
 			if (this.updateCallback) {
 				this.updateCallback();
 			}
-		}, intervalMs);
+		}, this.intervalMs);
 	}
 
 	stop(): void {
@@ -61,9 +71,26 @@ export class Marquee {
 	isRunning(): boolean {
 		return this.intervalId !== undefined;
 	}
+
+	setInterval(intervalMs: number): void {
+		this.intervalMs = intervalMs;
+		if (this.isRunning() && this.updateCallback) {
+			const callback = this.updateCallback;
+			this.stop();
+			this.start(callback);
+		}
+	}
+
+	getInterval(): number {
+		return this.intervalMs;
+	}
 }
 
-export function createMarquee(maxLength: number = 20, separator: string = '   '): Marquee {
-	return new Marquee(maxLength, separator);
+export function createMarquee(
+	maxLength: number = DEFAULT_MARQUEE_MAX_LENGTH,
+	separator: string = DEFAULT_MARQUEE_SEPARATOR,
+	intervalMs: number = DEFAULT_MARQUEE_INTERVAL_MS
+): Marquee {
+	return new Marquee(maxLength, separator, intervalMs);
 }
 
