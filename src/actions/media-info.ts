@@ -5,15 +5,17 @@ import { getMediaInfo, toggleMediaPlayPause, type MediaInfo, type MediaManagerEr
 type MediaInfoSettings = {
 	showTitle?: boolean;
 	showArtists?: boolean;
+	enableMarquee?: boolean;
 };
 
 @action({ UUID: 'ru.valentderah.media-manager.media-info' })
 export class MediaInfoAction extends SingletonAction<MediaInfoSettings> {
-	private static readonly UPDATE_INTERVAL_MS = 1000;
+	private static readonly UPDATE_INTERVAL_MS = 1500;
 
 	private static readonly DEFAULT_SETTINGS: MediaInfoSettings = {
 		showTitle: true,
-		showArtists: true
+		showArtists: true,
+		enableMarquee: true
 	};
 
 	private static readonly ERROR_MESSAGES: Record<MediaManagerErrorType, string> = {
@@ -26,12 +28,14 @@ export class MediaInfoAction extends SingletonAction<MediaInfoSettings> {
 	private intervalId: NodeJS.Timeout | undefined;
 	private currentAction: DialAction<MediaInfoSettings> | KeyAction<MediaInfoSettings> | undefined;
 	private readonly titleMarquee: Marquee;
+	private readonly artistsMarquee: Marquee;
 	private currentMediaInfo: MediaInfo | null = null;
 	private settings: MediaInfoSettings = { ...MediaInfoAction.DEFAULT_SETTINGS };
 
 	constructor() {
 		super();
 		this.titleMarquee = new Marquee();
+		this.artistsMarquee = new Marquee();
 	}
 
 	override async onWillAppear(ev: WillAppearEvent<MediaInfoSettings>): Promise<void> {
@@ -39,18 +43,27 @@ export class MediaInfoAction extends SingletonAction<MediaInfoSettings> {
 		await this.loadSettings(ev.action);
 		await this.updateMediaInfo(ev.action);
 		this.startUpdateInterval();
-		if (this.settings.showTitle) {
-			this.titleMarquee.start(() => {
-				if (this.currentAction) {
-					this.updateMarqueeTitle(this.currentAction);
-				}
-			});
+		
+		const updateCallback = () => {
+			if (this.currentAction) {
+				this.updateMarqueeTitle(this.currentAction);
+			}
+		};
+
+		if (this.settings.enableMarquee) {
+			if (this.settings.showTitle) {
+				this.titleMarquee.start(updateCallback);
+			}
+			if (this.settings.showArtists) {
+				this.artistsMarquee.start(updateCallback);
+			}
 		}
 	}
 
 	override onWillDisappear(ev: WillDisappearEvent<MediaInfoSettings>): void | Promise<void> {
 		this.stopUpdateInterval();
 		this.titleMarquee.stop();
+		this.artistsMarquee.stop();
 		this.currentAction = undefined;
 		this.currentMediaInfo = null;
 	}
@@ -62,21 +75,41 @@ export class MediaInfoAction extends SingletonAction<MediaInfoSettings> {
 
 	override async onDidReceiveSettings(ev: DidReceiveSettingsEvent<MediaInfoSettings>): Promise<void> {
 		const wasTitleEnabled = this.settings.showTitle;
+		const wasArtistsEnabled = this.settings.showArtists;
+		const wasMarqueeEnabled = this.settings.enableMarquee;
+		
 		this.settings = {
 			showTitle: ev.payload.settings.showTitle ?? MediaInfoAction.DEFAULT_SETTINGS.showTitle,
-			showArtists: ev.payload.settings.showArtists ?? MediaInfoAction.DEFAULT_SETTINGS.showArtists
+			showArtists: ev.payload.settings.showArtists ?? MediaInfoAction.DEFAULT_SETTINGS.showArtists,
+			enableMarquee: ev.payload.settings.enableMarquee ?? MediaInfoAction.DEFAULT_SETTINGS.enableMarquee
 		};
 
-		if (this.settings.showTitle && !wasTitleEnabled) {
+		const updateCallback = () => {
 			if (this.currentAction) {
-				this.titleMarquee.start(() => {
-					if (this.currentAction) {
-						this.updateMarqueeTitle(this.currentAction);
-					}
-				});
+				this.updateMarqueeTitle(this.currentAction);
 			}
-		} else if (!this.settings.showTitle && wasTitleEnabled) {
+		};
+
+		const shouldStartTitleMarquee = this.settings.enableMarquee && this.settings.showTitle;
+		const wasTitleMarqueeActive = wasMarqueeEnabled && wasTitleEnabled;
+
+		if (shouldStartTitleMarquee && !wasTitleMarqueeActive) {
+			if (this.currentAction) {
+				this.titleMarquee.start(updateCallback);
+			}
+		} else if (!shouldStartTitleMarquee && wasTitleMarqueeActive) {
 			this.titleMarquee.stop();
+		}
+
+		const shouldStartArtistsMarquee = this.settings.enableMarquee && this.settings.showArtists;
+		const wasArtistsMarqueeActive = wasMarqueeEnabled && wasArtistsEnabled;
+
+		if (shouldStartArtistsMarquee && !wasArtistsMarqueeActive) {
+			if (this.currentAction) {
+				this.artistsMarquee.start(updateCallback);
+			}
+		} else if (!shouldStartArtistsMarquee && wasArtistsMarqueeActive) {
+			this.artistsMarquee.stop();
 		}
 
 		if (this.currentAction) {
@@ -88,7 +121,8 @@ export class MediaInfoAction extends SingletonAction<MediaInfoSettings> {
 		const loadedSettings = await action.getSettings();
 		this.settings = {
 			showTitle: loadedSettings.showTitle ?? MediaInfoAction.DEFAULT_SETTINGS.showTitle,
-			showArtists: loadedSettings.showArtists ?? MediaInfoAction.DEFAULT_SETTINGS.showArtists
+			showArtists: loadedSettings.showArtists ?? MediaInfoAction.DEFAULT_SETTINGS.showArtists,
+			enableMarquee: loadedSettings.enableMarquee ?? MediaInfoAction.DEFAULT_SETTINGS.enableMarquee
 		};
 	}
 
@@ -98,6 +132,7 @@ export class MediaInfoAction extends SingletonAction<MediaInfoSettings> {
 		if (!result.success) {
 			this.currentMediaInfo = null;
 			this.titleMarquee.stop();
+			this.artistsMarquee.stop();
 			await action.setImage('');
 			await action.setTitle(MediaInfoAction.ERROR_MESSAGES[result.error.type]);
 			return;
@@ -112,10 +147,17 @@ export class MediaInfoAction extends SingletonAction<MediaInfoSettings> {
 		}
 
 		const titleChanged = this.currentMediaInfo?.Title !== info.Title;
+		const previousArtistText = this.currentMediaInfo ? this.getArtistText(this.currentMediaInfo) : '';
+		const currentArtistText = this.getArtistText(info);
+		const artistsChanged = previousArtistText !== currentArtistText;
 		this.currentMediaInfo = info;
 
 		if (titleChanged && info.Title) {
 			this.titleMarquee.setText(info.Title);
+		}
+
+		if (artistsChanged && currentArtistText) {
+			this.artistsMarquee.setText(currentArtistText);
 		}
 
 		await this.updateMarqueeTitle(action);
@@ -151,12 +193,20 @@ export class MediaInfoAction extends SingletonAction<MediaInfoSettings> {
 		if (this.settings.showArtists) {
 			const artistText = this.getArtistText(info);
 			if (artistText) {
-				parts.push(artistText);
+				if (this.settings.enableMarquee) {
+					parts.push(this.artistsMarquee.getCurrentFrame());
+				} else {
+					parts.push(artistText);
+				}
 			}
 		}
 
 		if (this.settings.showTitle && info.Title) {
-			parts.push(this.titleMarquee.getCurrentFrame());
+			if (this.settings.enableMarquee) {
+				parts.push(this.titleMarquee.getCurrentFrame());
+			} else {
+				parts.push(info.Title);
+			}
 		}
 
 		return parts.length > 0 ? parts.join('\n') : null;

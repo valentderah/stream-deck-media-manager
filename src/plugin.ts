@@ -1,13 +1,11 @@
 import streamDeck from "@elgato/streamdeck";
 
-import { IncrementCounter } from "./actions/increment-counter";
 import { MediaInfoAction } from "./actions/media-info";
 import { MediaNextAction } from "./actions/media-next";
 import { MediaPreviousAction } from "./actions/media-previous";
 
 streamDeck.logger.setLevel("trace");
 
-streamDeck.actions.registerAction(new IncrementCounter());
 streamDeck.actions.registerAction(new MediaInfoAction());
 streamDeck.actions.registerAction(new MediaNextAction());
 streamDeck.actions.registerAction(new MediaPreviousAction());

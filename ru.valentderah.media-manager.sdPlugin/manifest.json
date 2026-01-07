@@ -1,28 +1,12 @@
 {
 	"Name": "Media Manager",
-	"Version": "0.1.0.0",
+	"Version": "0.2.0.0",
 	"Author": "Valiantsin Dzerakh",
 	"Actions": [
 		{
-			"Name": "Counter",
-			"UUID": "ru.valentderah.media-manager.increment",
-			"Icon": "imgs/actions/counter/icon",
-			"Tooltip": "Displays a count, which increments by one on press.",
-			"PropertyInspectorPath": "ui/increment-counter.html",
-			"Controllers": [
-				"Keypad"
-			],
-			"States": [
-				{
-					"Image": "imgs/actions/counter/key",
-					"TitleAlignment": "middle"
-				}
-			]
-		},
-		{
-			"Name": "Media Info",
+			"Name": "Now Playing",
 			"UUID": "ru.valentderah.media-manager.media-info",
-			"Icon": "imgs/actions/media/icon",
+			"Icon": "imgs/actions/media/media-info-icon",
 			"Tooltip": "Displays currently playing media.",
 			"PropertyInspectorPath": "ui/media-info.html",
 			"Controllers": [
@@ -36,30 +20,32 @@
 			]
 		},
 		{
-			"Name": "Media Next",
+			"Name": "Next Media",
 			"UUID": "ru.valentderah.media-manager.media-next",
-			"Icon": "imgs/actions/media/icon",
+			"Icon": "imgs/actions/media/media-next-icon",
 			"Tooltip": "Skip to next track.",
 			"Controllers": [
 				"Keypad"
 			],
 			"States": [
 				{
-					"TitleAlignment": "middle"
+					"Image": "imgs/actions/media/media-next-icon",
+					"TitleAlignment": "bottom"
 				}
 			]
 		},
 		{
-			"Name": "Media Previous",
+			"Name": "Previous Media",
 			"UUID": "ru.valentderah.media-manager.media-previous",
-			"Icon": "imgs/actions/media/icon",
+			"Icon": "imgs/actions/media/media-previous-icon",
 			"Tooltip": "Skip to previous track.",
 			"Controllers": [
 				"Keypad"
 			],
 			"States": [
 				{
-					"TitleAlignment": "middle"
+					"Image": "imgs/actions/media/media-previous-icon",
+					"TitleAlignment": "bottom"
 				}
 			]
 		}

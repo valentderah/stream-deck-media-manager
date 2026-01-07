@@ -1,6 +1,6 @@
 export const DEFAULT_MARQUEE_MAX_LENGTH = 10;
-export const DEFAULT_MARQUEE_SEPARATOR = '   ';
-export const DEFAULT_MARQUEE_INTERVAL_MS = 1000;
+export const DEFAULT_MARQUEE_SEPARATOR = '  ';
+export const DEFAULT_MARQUEE_INTERVAL_MS = 500;
 
 export class Marquee {
 	private position: number = 0;
@@ -37,8 +37,6 @@ export class Marquee {
 		const endPosition = this.position + this.maxLength;
 		const frame = extendedText.substring(this.position, endPosition);
 
-		this.position = (this.position + 1) % (this.text.length + this.separator.length);
-
 		return frame;
 	}
 
@@ -46,6 +44,9 @@ export class Marquee {
 		this.stop();
 		this.updateCallback = callback;
 		this.intervalId = setInterval(() => {
+			if (this.text && this.text.length > this.maxLength) {
+				this.position = (this.position + 1) % (this.text.length + this.separator.length);
+			}
 			if (this.updateCallback) {
 				this.updateCallback();
 			}
