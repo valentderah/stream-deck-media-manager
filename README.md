@@ -1,0 +1,1 @@
+# stream-deck-media-manager
