@@ -16,6 +16,7 @@ class Program
 {
     static async Task Main(string[] args)
     {
+        // Запускаем основной цикл прослушивания событий
         await RunMediaListener();
     }
 
@@ -23,10 +24,13 @@ class Program
     {
         var sessionManager = await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
 
+        // Подписываемся на смену медиа-сессии (например, переключились с Spotify на YouTube)
         sessionManager.CurrentSessionChanged += (s, e) => OnSessionChanged(s);
 
+        // Получаем и обрабатываем текущую сессию при запуске
         OnSessionChanged(sessionManager);
 
+        // Цикл для прослушивания команд из stdin
         while (true)
         {
             var command = await Console.In.ReadLineAsync();
@@ -51,6 +55,7 @@ class Program
 
     private static void OnSessionChanged(GlobalSystemMediaTransportControlsSessionManager manager)
     {
+        // Отписываемся от событий старой сессии
         if (_currentSession != null)
         {
             _currentSession.MediaPropertiesChanged -= OnMediaPropertiesChanged;
@@ -59,12 +64,14 @@ class Program
 
         _currentSession = manager.GetCurrentSession();
 
+        // Подписываемся на события новой сессии
         if (_currentSession != null)
         {
             _currentSession.MediaPropertiesChanged += OnMediaPropertiesChanged;
             _currentSession.PlaybackInfoChanged += OnPlaybackInfoChanged;
         }
 
+        // Принудительно обновляем информацию
         UpdateCurrentMediaInfo();
     }
 
@@ -83,6 +90,7 @@ class Program
         var mediaInfo = await GetCurrentMediaInfoAsync();
         var json = JsonSerializer.Serialize(mediaInfo, MediaInfoJsonContext.Default.MediaInfo);
         
+        // Отправляем JSON в stdout. Добавляем разделитель новой строки для парсинга на стороне TS.
         await Console.Out.WriteLineAsync(json);
     }
 
@@ -90,6 +98,7 @@ class Program
     {
         var sessionManager = await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
         
+        // Улучшенный поиск активной сессии
         var activeSession = FindBestMediaSession(sessionManager);
 
         if (activeSession == null)
@@ -216,6 +225,65 @@ class Program
                 
                 var bytes = outputBuffer.ToArray();
                 info.CoverArtBase64 = Convert.ToBase64String(bytes);
+
+                // Разделяем изображение на 4 части (2x2)
+                const int partSize = targetSize / 2; // 144x144 для каждой части
+                var parts = new List<byte[]>(4);
+
+                for (int row = 0; row < 2; row++)
+                {
+                    for (int col = 0; col < 2; col++)
+                    {
+                        var partPixels = new byte[partSize * partSize * 4];
+                        
+                        for (int y = 0; y < partSize; y++)
+                        {
+                            for (int x = 0; x < partSize; x++)
+                            {
+                                var sourceX = col * partSize + x;
+                                var sourceY = row * partSize + y;
+                                var sourceIndex = (sourceY * targetSize + sourceX) * 4;
+                                var targetIndex = (y * partSize + x) * 4;
+                                
+                                if (sourceIndex < finalPixels.Length && targetIndex < partPixels.Length)
+                                {
+                                    partPixels[targetIndex] = finalPixels[sourceIndex];
+                                    partPixels[targetIndex + 1] = finalPixels[sourceIndex + 1];
+                                    partPixels[targetIndex + 2] = finalPixels[sourceIndex + 2];
+                                    partPixels[targetIndex + 3] = finalPixels[sourceIndex + 3];
+                                }
+                            }
+                        }
+
+                        using var partStream = new InMemoryRandomAccessStream();
+                        var partEncoder = await BitmapEncoder.CreateAsync(BitmapEncoder.PngEncoderId, partStream);
+                        partEncoder.SetPixelData(
+                            BitmapPixelFormat.Rgba8,
+                            BitmapAlphaMode.Premultiplied,
+                            (uint)partSize,
+                            (uint)partSize,
+                            96.0,
+                            96.0,
+                            partPixels
+                        );
+                        await partEncoder.FlushAsync();
+
+                        partStream.Seek(0);
+                        var partBuffer = new global::Windows.Storage.Streams.Buffer((uint)partStream.Size);
+                        await partStream.ReadAsync(partBuffer, (uint)partStream.Size, InputStreamOptions.None);
+                        var partBytes = partBuffer.ToArray();
+                        parts.Add(partBytes);
+                    }
+                }
+
+                // Присваиваем части: 0=topLeft, 1=topRight, 2=bottomLeft, 3=bottomRight
+                if (parts.Count >= 4)
+                {
+                    info.CoverArtPart1Base64 = Convert.ToBase64String(parts[0]); // Top Left
+                    info.CoverArtPart2Base64 = Convert.ToBase64String(parts[1]); // Top Right
+                    info.CoverArtPart3Base64 = Convert.ToBase64String(parts[2]); // Bottom Left
+                    info.CoverArtPart4Base64 = Convert.ToBase64String(parts[3]); // Bottom Right
+                }
             }
             catch
             {
@@ -227,16 +295,19 @@ class Program
 
     private static GlobalSystemMediaTransportControlsSession? FindBestMediaSession(GlobalSystemMediaTransportControlsSessionManager manager)
     {
+        // 1. Сначала пытаемся получить сессию, которую система считает текущей
         var currentSession = manager.GetCurrentSession();
         if (currentSession != null)
         {
             var playbackInfo = currentSession.GetPlaybackInfo();
+            // 2. Если она активна - отлично, это наш клиент
             if (playbackInfo.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing)
             {
                 return currentSession;
             }
         }
 
+        // 3. Если текущая сессия неактивна, ищем любую другую играющую сессию
         var allSessions = manager.GetSessions();
         var playingSession = allSessions.FirstOrDefault(s => s.GetPlaybackInfo().PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing);
         if (playingSession != null)
@@ -244,6 +315,7 @@ class Program
             return playingSession;
         }
 
+        // 4. Если играющих нет, возвращаем "текущую" (даже если она на паузе) или первую попавшуюся
         return currentSession ?? allSessions.FirstOrDefault();
     }
 
@@ -308,6 +380,10 @@ class MediaInfo
     public string AlbumTitle { get; set; } = string.Empty;
     public string Status { get; set; } = "Stopped";
     public string CoverArtBase64 { get; set; } = string.Empty;
+    public string CoverArtPart1Base64 { get; set; } = string.Empty; // Top Left
+    public string CoverArtPart2Base64 { get; set; } = string.Empty; // Top Right
+    public string CoverArtPart3Base64 { get; set; } = string.Empty; // Bottom Left
+    public string CoverArtPart4Base64 { get; set; } = string.Empty; // Bottom Right
 }
 
 [JsonSourceGenerationOptions(WriteIndented = false)]

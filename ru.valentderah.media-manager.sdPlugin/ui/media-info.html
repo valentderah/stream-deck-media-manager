@@ -5,6 +5,25 @@
 </head>
 <html>
     <body>
+        <sdpi-item label="Mode">
+            <sdpi-select setting="position" default="none">
+                <option value="none">Full</option>
+                <option value="top-left">Top Left (2x2)</option>
+                <option value="top-right">Top Right (2x2)</option>
+                <option value="bottom-left">Bottom Left (2x2)</option>
+                <option value="bottom-right">Bottom Right (2x2)</option>
+            </sdpi-select>
+        </sdpi-item>
+
+        <sdpi-item label="Action on Click">
+            <sdpi-select setting="action" default="toggle">
+                <option value="toggle">Play/Pause</option>
+                <option value="next">Next Track</option>
+                <option value="previous">Previous Track</option>
+                <option value="none">None</option>
+            </sdpi-select>
+        </sdpi-item>
+
         <sdpi-item label="Show Title">
             <sdpi-checkbox setting="showTitle" default="true"></sdpi-checkbox>
         </sdpi-item>

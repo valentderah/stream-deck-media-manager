@@ -9,6 +9,10 @@ export type MediaInfo = {
 	AlbumTitle?: string;
 	Status?: 'Playing' | 'Paused' | 'Stopped';
 	CoverArtBase64?: string;
+	CoverArtPart1Base64?: string;
+	CoverArtPart2Base64?: string;
+	CoverArtPart3Base64?: string;
+	CoverArtPart4Base64?: string;
 };
 
 export type MediaManagerErrorType = 'FILE_NOT_FOUND' | 'HELPER_ERROR' | 'PARSING_ERROR' | 'NOTHING_PLAYING';
@@ -27,11 +31,33 @@ type MediaCommand = 'toggle' | 'next' | 'previous';
 
 class MediaManagerService {
 	private process: ChildProcessWithoutNullStreams | null = null;
-	private onUpdate: (result: MediaManagerResult) => void;
+	private subscribers: Set<(result: MediaManagerResult) => void> = new Set();
 	private buffer: string = '';
 
-	constructor(onUpdate: (result: MediaManagerResult) => void) {
-		this.onUpdate = onUpdate;
+	public subscribe(callback: (result: MediaManagerResult) => void): () => void {
+		this.subscribers.add(callback);
+		return () => {
+			this.unsubscribe(callback);
+		};
+	}
+
+	public unsubscribe(callback: (result: MediaManagerResult) => void): void {
+		this.subscribers.delete(callback);
+
+		if (this.subscribers.size === 0 && this.process) {
+			this.process.kill();
+			this.process = null;
+		}
+	}
+
+	private notifySubscribers(result: MediaManagerResult): void {
+		this.subscribers.forEach(callback => {
+			try {
+				callback(result);
+			} catch (error) {
+				console.error('Error in subscriber callback:', error);
+			}
+		});
 	}
 
 	public start(): void {
@@ -52,15 +78,15 @@ class MediaManagerService {
 				try {
 					const info: MediaInfo = JSON.parse(line);
 					if (!info.Title && !info.Artist && (!info.Artists || info.Artists.length === 0)) {
-						this.onUpdate({
+						this.notifySubscribers({
 							success: false,
 							error: { type: 'NOTHING_PLAYING', message: 'No media data available' }
 						});
 					} else {
-						this.onUpdate({ success: true, data: info });
+						this.notifySubscribers({ success: true, data: info });
 					}
 				} catch (parseError) {
-					this.onUpdate({
+					this.notifySubscribers({
 						success: false,
 						error: {
 							type: 'PARSING_ERROR',
@@ -73,7 +99,7 @@ class MediaManagerService {
 
 		this.process.stderr.on('data', (data: Buffer) => {
 			console.error(`MediaManager stderr: ${data}`);
-			this.onUpdate({
+			this.notifySubscribers({
 				success: false,
 				error: { type: 'HELPER_ERROR', message: data.toString() }
 			});
@@ -82,7 +108,7 @@ class MediaManagerService {
 		this.process.on('error', (err) => {
 			console.error('Failed to start MediaManager process.', err);
 			const errorType: MediaManagerErrorType = err.message.includes('ENOENT') ? 'FILE_NOT_FOUND' : 'HELPER_ERROR';
-			this.onUpdate({
+			this.notifySubscribers({
 				success: false,
 				error: { type: errorType, message: err.message }
 			});
@@ -96,7 +122,7 @@ class MediaManagerService {
 	}
 
 	public stop(): void {
-		if (this.process) {
+		if (this.process && this.subscribers.size === 0) {
 			this.process.kill();
 			this.process = null;
 		}
@@ -109,9 +135,7 @@ class MediaManagerService {
 	}
 }
 
-export const mediaManagerService = new MediaManagerService((result) => {
-	// This is a placeholder. The action will provide the actual callback.
-});
+export const mediaManagerService = new MediaManagerService();
 
 export function toggleMediaPlayPause(): void {
 	mediaManagerService.sendCommand('toggle');

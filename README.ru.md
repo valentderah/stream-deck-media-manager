@@ -2,7 +2,7 @@
 
 # Media Manager
 
-<img width="553" height="419" alt="image" src="https://github.com/user-attachments/assets/0a6e0841-76fe-4594-beb3-2fa341ba8f2c" />
+<img width="553" height="419" alt="image" src="ru.valentderah.media-manager.sdPlugin/imgs/banner.png" />
 
 Этот плагин создан для пользователей Stream Deck. Он отображает информацию о текущем воспроизводимом медиа.
 

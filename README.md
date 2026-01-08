@@ -2,7 +2,7 @@ English | [Русский](README.ru.md)
 
 # Media Manager
 
-<img width="553" height="419" alt="image" src="https://github.com/user-attachments/assets/0a6e0841-76fe-4594-beb3-2fa341ba8f2c" />
+<img width="553" height="419" alt="image" src="ru.valentderah.media-manager.sdPlugin/imgs/banner.png" />
 
 This plugin is created for Stream Deck users. It displays information about currently playing media.
 
