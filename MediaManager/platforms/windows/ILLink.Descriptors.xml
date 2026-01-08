@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<linker>
+  <!-- Windows Runtime API - сохраняем все публичные типы для COM-интероперабельности -->
+  <!-- Это необходимо для корректной работы Windows Runtime -->
+  <assembly fullname="Windows.Foundation" preserve="all" />
+  <assembly fullname="Windows.Media.Control" preserve="all" />
+  <assembly fullname="Windows.Graphics.Imaging" preserve="all" />
+  <assembly fullname="Windows.Storage.Streams" preserve="all" />
+  
+  <!-- System.Text.Json - сохраняем используемые типы и их зависимости -->
+  <assembly fullname="System.Text.Json">
+    <type fullname="System.Text.Json.Serialization.JsonSerializerContext" preserve="all" />
+    <type fullname="System.Text.Json.JsonSerializer" preserve="all" />
+    <type fullname="System.Text.Json.Serialization.JsonSourceGenerationOptionsAttribute" preserve="all" />
+    <type fullname="System.Text.Json.Serialization.JsonSerializableAttribute" preserve="all" />
+    <type fullname="System.Text.Json.Serialization.JsonSerializerOptions" preserve="all" />
+  </assembly>
+  
+  <!-- Базовые системные сборки - агрессивная обрезка неиспользуемых частей -->
+  <assembly fullname="System.Runtime" preserve="nothing" />
+  <assembly fullname="System.Console" preserve="nothing" />
+  <assembly fullname="System.Collections" preserve="nothing" />
+  <assembly fullname="System.Linq" preserve="nothing" />
+  <assembly fullname="System.Threading.Tasks" preserve="nothing" />
+  <assembly fullname="System.Runtime.InteropServices" preserve="nothing" />
+</linker>

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices.WindowsRuntime;
+using System.Text.Json.Serialization;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Windows.Graphics.Imaging;
@@ -33,19 +34,13 @@ class Program
         try
         {
             var mediaInfo = await GetCurrentMediaInfoAsync();
-            var json = JsonSerializer.Serialize(mediaInfo, new JsonSerializerOptions
-            {
-                WriteIndented = false
-            });
+            var json = JsonSerializer.Serialize(mediaInfo, MediaInfoJsonContext.Default.MediaInfo);
             Console.WriteLine(json);
         }
         catch (Exception)
         {
             var emptyInfo = new MediaInfo();
-            var json = JsonSerializer.Serialize(emptyInfo, new JsonSerializerOptions
-            {
-                WriteIndented = false
-            });
+            var json = JsonSerializer.Serialize(emptyInfo, MediaInfoJsonContext.Default.MediaInfo);
             Console.WriteLine(json);
         }
     }
@@ -53,21 +48,7 @@ class Program
     static async Task<MediaInfo> GetCurrentMediaInfoAsync()
     {
         var sessionManager = await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
-        var sessions = sessionManager.GetSessions();
-
-        GlobalSystemMediaTransportControlsSession? activeSession = null;
-        foreach (var session in sessions)
-        {
-            var sessionPlaybackInfo = session.GetPlaybackInfo();
-            if (sessionPlaybackInfo.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing ||
-                sessionPlaybackInfo.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Paused)
-            {
-                activeSession = session;
-                break;
-            }
-        }
-
-        activeSession ??= sessions.FirstOrDefault();
+        var activeSession = sessionManager.GetCurrentSession();
 
         if (activeSession == null)
         {
@@ -207,21 +188,7 @@ class Program
         try
         {
             var sessionManager = await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
-            var sessions = sessionManager.GetSessions();
-
-            GlobalSystemMediaTransportControlsSession? activeSession = null;
-            foreach (var session in sessions)
-            {
-                var sessionPlaybackInfo = session.GetPlaybackInfo();
-                if (sessionPlaybackInfo.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing ||
-                    sessionPlaybackInfo.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Paused)
-                {
-                    activeSession = session;
-                    break;
-                }
-            }
-
-            return activeSession ?? sessions.FirstOrDefault();
+            return sessionManager.GetCurrentSession();
         }
         catch
         {
@@ -286,3 +253,8 @@ class MediaInfo
     public string CoverArtBase64 { get; set; } = string.Empty;
 }
 
+[JsonSourceGenerationOptions(WriteIndented = false)]
+[JsonSerializable(typeof(MediaInfo))]
+internal partial class MediaInfoJsonContext : JsonSerializerContext
+{
+}

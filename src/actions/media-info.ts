@@ -85,36 +85,10 @@ export class MediaInfoAction extends SingletonAction<MediaInfoSettings> {
 		};
 
 		const updateCallback = () => {
-			if (this.currentAction) {
-				this.updateMarqueeTitle(this.currentAction);
-			}
+			this.currentAction && this.updateMarqueeTitle(this.currentAction);
 		};
-
-		const shouldStartTitleMarquee = this.settings.enableMarquee && this.settings.showTitle;
-		const wasTitleMarqueeActive = wasMarqueeEnabled && wasTitleEnabled;
-
-		if (shouldStartTitleMarquee && !wasTitleMarqueeActive) {
-			if (this.currentAction) {
-				this.titleMarquee.start(updateCallback);
-			}
-		} else if (!shouldStartTitleMarquee && wasTitleMarqueeActive) {
-			this.titleMarquee.stop();
-		}
-
-		const shouldStartArtistsMarquee = this.settings.enableMarquee && this.settings.showArtists;
-		const wasArtistsMarqueeActive = wasMarqueeEnabled && wasArtistsEnabled;
-
-		if (shouldStartArtistsMarquee && !wasArtistsMarqueeActive) {
-			if (this.currentAction) {
-				this.artistsMarquee.start(updateCallback);
-			}
-		} else if (!shouldStartArtistsMarquee && wasArtistsMarqueeActive) {
-			this.artistsMarquee.stop();
-		}
-
-		if (this.currentAction) {
-			await this.updateMarqueeTitle(this.currentAction);
-		}
+		this.updateMarqueeState(updateCallback);
+		await this.updateMarqueeTitle(this.currentAction);
 	}
 
 	private async loadSettings(action: DialAction<MediaInfoSettings> | KeyAction<MediaInfoSettings>): Promise<void> {
@@ -124,6 +98,22 @@ export class MediaInfoAction extends SingletonAction<MediaInfoSettings> {
 			showArtists: loadedSettings.showArtists ?? MediaInfoAction.DEFAULT_SETTINGS.showArtists,
 			enableMarquee: loadedSettings.enableMarquee ?? MediaInfoAction.DEFAULT_SETTINGS.enableMarquee
 		};
+	}
+
+	private updateMarqueeState(updateCallback: () => void): void {
+		const shouldRunTitleMarquee = this.settings.enableMarquee && this.settings.showTitle;
+		if (shouldRunTitleMarquee && !this.titleMarquee.isRunning()) {
+			this.titleMarquee.start(updateCallback);
+		} else if (!shouldRunTitleMarquee && this.titleMarquee.isRunning()) {
+			this.titleMarquee.stop();
+		}
+
+		const shouldRunArtistsMarquee = this.settings.enableMarquee && this.settings.showArtists;
+		if (shouldRunArtistsMarquee && !this.artistsMarquee.isRunning()) {
+			this.artistsMarquee.start(updateCallback);
+		} else if (!shouldRunArtistsMarquee && this.artistsMarquee.isRunning()) {
+			this.artistsMarquee.stop();
+		}
 	}
 
 	private async updateMediaInfo(action: DialAction<MediaInfoSettings> | KeyAction<MediaInfoSettings>): Promise<void> {

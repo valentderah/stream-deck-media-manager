@@ -8,8 +8,10 @@
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <SelfContained>true</SelfContained>
     <PublishSingleFile>true</PublishSingleFile>
-    <PublishTrimmed>false</PublishTrimmed>
+    <PublishTrimmed>true</PublishTrimmed>
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <TrimMode>full</TrimMode>
+    <TrimAnalysis>false</TrimAnalysis>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <PublishReadyToRun>false</PublishReadyToRun>
     <PublishReadyToRunComposite>false</PublishReadyToRunComposite>
@@ -17,11 +19,26 @@
     <DebugSymbols>false</DebugSymbols>
     <InvariantGlobalization>true</InvariantGlobalization>
     <AssemblyName>MediaManager</AssemblyName>
+    
+    <!-- Дополнительные оптимизации размера -->
+    <EventSourceSupport>false</EventSourceSupport>
+    <UseSystemResourceKeys>true</UseSystemResourceKeys>
+    <EnableUnsafeUTF7Encoding>false</EnableUnsafeUTF7Encoding>
+    <EnableUnsafeBinaryFormatterSerialization>false</EnableUnsafeBinaryFormatterSerialization>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="System.Text.Json" Version="8.0.5" />
   </ItemGroup>
 
-</Project>
+  <!-- Настройки обрезки -->
+  <ItemGroup>
+    <TrimmerRootAssembly Include="MediaManager" />
+  </ItemGroup>
 
+  <!-- Файл дескрипторов для обрезки -->
+  <ItemGroup>
+    <TrimmerRootDescriptor Include="ILLink.Descriptors.xml" />
+  </ItemGroup>
+
+</Project>

@@ -4,7 +4,7 @@ echo.
 
 cd /d "%~dp0"
 
-dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=false -p:EnableCompressionInSingleFile=true -p:PublishReadyToRun=false -p:PublishReadyToRunComposite=false -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=none -p:DebugSymbols=false -p:InvariantGlobalization=true
+dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -p:EnableCompressionInSingleFile=true -p:PublishReadyToRun=false -p:PublishReadyToRunComposite=false -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=none -p:DebugSymbols=false -p:InvariantGlobalization=true -p:TrimMode=full -p:TrimAnalysis=false -p:EventSourceSupport=false -p:UseSystemResourceKeys=true
 
 if %ERRORLEVEL% NEQ 0 (
     echo.

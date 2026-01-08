@@ -4,7 +4,7 @@ import { MediaInfoAction } from "./actions/media-info";
 import { MediaNextAction } from "./actions/media-next";
 import { MediaPreviousAction } from "./actions/media-previous";
 
-streamDeck.logger.setLevel("trace");
+streamDeck.logger.setLevel("warn"); // Use "trace" for development, "warn" or "error" for production
 
 streamDeck.actions.registerAction(new MediaInfoAction());
 streamDeck.actions.registerAction(new MediaNextAction());
