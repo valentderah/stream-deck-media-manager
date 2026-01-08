@@ -41,21 +41,6 @@ export class MediaInfoAction extends SingletonAction<MediaInfoSettings> {
 		this.currentAction = ev.action;
 		await this.loadSettings(ev.action);
 		mediaManagerService.start();
-
-		const updateCallback = () => {
-			if (this.currentAction) {
-				this.updateMarqueeTitle(this.currentAction);
-			}
-		};
-
-		if (this.settings.enableMarquee) {
-			if (this.settings.showTitle) {
-				this.titleMarquee.start(updateCallback);
-			}
-			if (this.settings.showArtists) {
-				this.artistsMarquee.start(updateCallback);
-			}
-		}
 	}
 
 	override onWillDisappear(ev: WillDisappearEvent<MediaInfoSettings>): void | Promise<void> {
@@ -144,6 +129,11 @@ export class MediaInfoAction extends SingletonAction<MediaInfoSettings> {
 		if (artistsChanged && currentArtistText) {
 			this.artistsMarquee.setText(currentArtistText);
 		}
+
+		const updateCallback = () => {
+			this.currentAction && this.updateMarqueeTitle(this.currentAction);
+		};
+		this.updateMarqueeState(updateCallback);
 
 		await this.updateMarqueeTitle(action);
 	}
