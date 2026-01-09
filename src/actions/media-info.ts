@@ -29,6 +29,18 @@ export class MediaInfoAction extends SingletonAction<MediaInfoSettings> {
 		NOTHING_PLAYING: 'Nothing\nPlaying'
 	} as const;
 
+	/**
+	 * @param size Default is 144px for one cell
+	 */
+	private static generatePlaceholderImage(size: number = 144): string {
+
+		const svg = `<svg width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg">
+			<rect width="${size}" height="${size}" fill="#242424"/>
+		</svg>`;
+		const base64 = Buffer.from(svg).toString('base64');
+		return `data:image/svg+xml;base64,${base64}`;
+	}
+
 	private readonly actionHandlers = new Map<DialAction<MediaInfoSettings> | KeyAction<MediaInfoSettings>, {
 		settings: MediaInfoSettings;
 		titleMarquee: Marquee;
@@ -153,8 +165,16 @@ export class MediaInfoAction extends SingletonAction<MediaInfoSettings> {
 			handler.currentMediaInfo = null;
 			titleMarquee.stop();
 			artistsMarquee.stop();
-			await action.setImage('');
-			await action.setTitle(MediaInfoAction.ERROR_MESSAGES[result.error.type]);
+			
+			if (result.error.type === 'NOTHING_PLAYING') {
+				const placeholderSize = settings.position === 'none' ? 288 : 144;
+				const placeholderImage = MediaInfoAction.generatePlaceholderImage(placeholderSize);
+				await action.setImage(placeholderImage);
+				await action.setTitle('');
+			} else {
+				await action.setImage('');
+				await action.setTitle(MediaInfoAction.ERROR_MESSAGES[result.error.type]);
+			}
 			return;
 		}
 
@@ -212,17 +232,17 @@ export class MediaInfoAction extends SingletonAction<MediaInfoSettings> {
 		const { settings } = handler;
 		const position = settings.position ?? 'none';
 
-		// Если позиция 'none', показываем полное изображение
 		if (position === 'none') {
 			if (info.CoverArtBase64) {
 				await action.setImage(`data:image/png;base64,${info.CoverArtBase64}`);
 			} else {
-				await action.setImage('');
+				// Если нет обложки, показываем серый плейсхолдер
+				const placeholderImage = MediaInfoAction.generatePlaceholderImage(288);
+				await action.setImage(placeholderImage);
 			}
 			return;
 		}
 
-		// Если есть готовые части из C# helper, используем их
 		let partBase64: string | undefined;
 		switch (position) {
 			case 'top-left':
@@ -245,7 +265,9 @@ export class MediaInfoAction extends SingletonAction<MediaInfoSettings> {
 		} else if (info.CoverArtBase64) {
 			await action.setImage(`data:image/png;base64,${info.CoverArtBase64}`);
 		} else {
-			await action.setImage('');
+			// Если нет обложки, показываем серый плейсхолдер
+			const placeholderImage = MediaInfoAction.generatePlaceholderImage(144);
+			await action.setImage(placeholderImage);
 		}
 	}
 
@@ -266,7 +288,11 @@ export class MediaInfoAction extends SingletonAction<MediaInfoSettings> {
 		const { settings, currentMediaInfo, titleMarquee, artistsMarquee } = handler;
 
 		if (!currentMediaInfo) {
-			await action.setTitle(MediaInfoAction.ERROR_MESSAGES.NOTHING_PLAYING);
+			// Устанавливаем серый плейсхолдер и пустой заголовок
+			const placeholderSize = settings.position === 'none' ? 288 : 144;
+			const placeholderImage = MediaInfoAction.generatePlaceholderImage(placeholderSize);
+			await action.setImage(placeholderImage);
+			await action.setTitle('');
 			return;
 		}
 

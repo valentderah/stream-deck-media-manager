@@ -33,20 +33,40 @@ class Program
         // Цикл для прослушивания команд из stdin
         while (true)
         {
-            var command = await Console.In.ReadLineAsync();
-            if (string.IsNullOrEmpty(command)) continue;
-
-            switch (command.Trim().ToLower())
+            try
             {
-                case "toggle":
-                    await TogglePlayPauseAsync();
+                var command = await Console.In.ReadLineAsync();
+                
+                // Если stdin закрыт, выходим из цикла
+                if (command == null)
+                {
                     break;
-                case "next":
-                    await NextTrackAsync();
-                    break;
-                case "previous":
-                    await PreviousTrackAsync();
-                    break;
+                }
+                
+                if (string.IsNullOrEmpty(command)) continue;
+
+                switch (command.Trim().ToLower())
+                {
+                    case "toggle":
+                        await TogglePlayPauseAsync();
+                        break;
+                    case "next":
+                        await NextTrackAsync();
+                        break;
+                    case "previous":
+                        await PreviousTrackAsync();
+                        break;
+                }
+            }
+            catch (IOException)
+            {
+                // stdin закрыт или произошла ошибка ввода/вывода
+                break;
+            }
+            catch
+            {
+                // Другие ошибки игнорируем и продолжаем работу
+                continue;
             }
         }
     }
@@ -62,7 +82,8 @@ class Program
             _currentSession.PlaybackInfoChanged -= OnPlaybackInfoChanged;
         }
 
-        _currentSession = manager.GetCurrentSession();
+        // Используем FindBestMediaSession для согласованности с GetCurrentMediaInfoAsync
+        _currentSession = FindBestMediaSession(manager);
 
         // Подписываемся на события новой сессии
         if (_currentSession != null)
@@ -71,27 +92,54 @@ class Program
             _currentSession.PlaybackInfoChanged += OnPlaybackInfoChanged;
         }
 
-        // Принудительно обновляем информацию
-        UpdateCurrentMediaInfo();
+        // Принудительно обновляем информацию (fire-and-forget с обработкой ошибок)
+        _ = UpdateCurrentMediaInfoAsync().ContinueWith(task =>
+        {
+            if (task.IsFaulted)
+            {
+                // Игнорируем ошибки обновления медиа-информации
+            }
+        }, TaskContinuationOptions.OnlyOnFaulted);
     }
 
     private static void OnPlaybackInfoChanged(GlobalSystemMediaTransportControlsSession session, PlaybackInfoChangedEventArgs args)
     {
-        UpdateCurrentMediaInfo();
+        // Fire-and-forget с обработкой ошибок
+        _ = UpdateCurrentMediaInfoAsync().ContinueWith(task =>
+        {
+            if (task.IsFaulted)
+            {
+                // Игнорируем ошибки обновления медиа-информации
+            }
+        }, TaskContinuationOptions.OnlyOnFaulted);
     }
 
     private static void OnMediaPropertiesChanged(GlobalSystemMediaTransportControlsSession session, MediaPropertiesChangedEventArgs args)
     {
-        UpdateCurrentMediaInfo();
+        // Fire-and-forget с обработкой ошибок
+        _ = UpdateCurrentMediaInfoAsync().ContinueWith(task =>
+        {
+            if (task.IsFaulted)
+            {
+                // Игнорируем ошибки обновления медиа-информации
+            }
+        }, TaskContinuationOptions.OnlyOnFaulted);
     }
 
-    private static async void UpdateCurrentMediaInfo()
+    private static async Task UpdateCurrentMediaInfoAsync()
     {
-        var mediaInfo = await GetCurrentMediaInfoAsync();
-        var json = JsonSerializer.Serialize(mediaInfo, MediaInfoJsonContext.Default.MediaInfo);
-        
-        // Отправляем JSON в stdout. Добавляем разделитель новой строки для парсинга на стороне TS.
-        await Console.Out.WriteLineAsync(json);
+        try
+        {
+            var mediaInfo = await GetCurrentMediaInfoAsync();
+            var json = JsonSerializer.Serialize(mediaInfo, MediaInfoJsonContext.Default.MediaInfo);
+            
+            // Отправляем JSON в stdout. Добавляем разделитель новой строки для парсинга на стороне TS.
+            await Console.Out.WriteLineAsync(json);
+        }
+        catch
+        {
+            // Игнорируем ошибки при выводе, чтобы не крашить приложение
+        }
     }
 
     static async Task<MediaInfo> GetCurrentMediaInfoAsync()
@@ -136,7 +184,7 @@ class Program
         {
             try
             {
-                var thumbnailStream = await mediaProperties.Thumbnail.OpenReadAsync();
+                using var thumbnailStream = await mediaProperties.Thumbnail.OpenReadAsync();
                 var decoder = await BitmapDecoder.CreateAsync(thumbnailStream);
                 
                 const int targetSize = 144;
