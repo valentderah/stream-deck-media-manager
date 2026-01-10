@@ -5,7 +5,7 @@
 </head>
 <html>
     <body>
-        <sdpi-item label="Mode">
+        <sdpi-item label="Image Mode">
             <sdpi-select setting="position" default="none">
                 <option value="none">Full</option>
                 <option value="top-left">Top Left (2x2)</option>
@@ -24,12 +24,13 @@
             </sdpi-select>
         </sdpi-item>
 
-        <sdpi-item label="Show Title">
-            <sdpi-checkbox setting="showTitle" default="true"></sdpi-checkbox>
-        </sdpi-item>
-
-        <sdpi-item label="Show Artists">
-            <sdpi-checkbox setting="showArtists" default="true"></sdpi-checkbox>
+        <sdpi-item label="Text Display">
+            <sdpi-select setting="textDisplayMode" default="both">
+                <option value="both">Artist and Title</option>
+                <option value="artists">Artist Only</option>
+                <option value="title">Title Only</option>
+                <option value="none">None</option>
+            </sdpi-select>
         </sdpi-item>
 
         <sdpi-item label="Enable Marquee">

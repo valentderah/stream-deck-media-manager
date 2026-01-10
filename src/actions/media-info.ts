@@ -26,12 +26,15 @@ import {
 } from '../utils/constants';
 
 type ActionType = 'toggle' | 'next' | 'previous' | 'none';
+type TextDisplayMode = 'both' | 'artists' | 'title' | 'none';
+type PositionMode = 'none' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 
 type MediaInfoSettings = {
+	textDisplayMode?: TextDisplayMode;
 	showTitle?: boolean;
 	showArtists?: boolean;
 	enableMarquee?: boolean;
-	position?: 'none' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+	position?: PositionMode;
 	action?: ActionType;
 };
 
@@ -45,8 +48,7 @@ type ActionHandlerInfo = {
 @action({ UUID: 'ru.valentderah.media-manager.media-info' })
 export class MediaInfoAction extends SingletonAction<MediaInfoSettings> {
 	private static readonly DEFAULT_SETTINGS: MediaInfoSettings = {
-		showTitle: true,
-		showArtists: true,
+		textDisplayMode: 'both',
 		enableMarquee: true,
 		position: 'none',
 		action: 'toggle'
@@ -140,13 +142,7 @@ export class MediaInfoAction extends SingletonAction<MediaInfoSettings> {
 
 		if (!handler) return;
 
-		handler.settings = {
-			showTitle: ev.payload.settings.showTitle ?? MediaInfoAction.DEFAULT_SETTINGS.showTitle,
-			showArtists: ev.payload.settings.showArtists ?? MediaInfoAction.DEFAULT_SETTINGS.showArtists,
-			enableMarquee: ev.payload.settings.enableMarquee ?? MediaInfoAction.DEFAULT_SETTINGS.enableMarquee,
-			position: ev.payload.settings.position ?? MediaInfoAction.DEFAULT_SETTINGS.position,
-			action: ev.payload.settings.action ?? MediaInfoAction.DEFAULT_SETTINGS.action
-		};
+		handler.settings = this.normalizeSettings(ev.payload.settings);
 
 		if (handler.currentMediaInfo) {
 			await this.updateAction(action, handler, { success: true, data: handler.currentMediaInfo });
@@ -155,12 +151,38 @@ export class MediaInfoAction extends SingletonAction<MediaInfoSettings> {
 
 	private async loadSettings(action: DialAction<MediaInfoSettings> | KeyAction<MediaInfoSettings>): Promise<MediaInfoSettings> {
 		const loadedSettings = await action.getSettings();
+		return this.normalizeSettings(loadedSettings);
+	}
+
+	private normalizeSettings(settings: MediaInfoSettings): MediaInfoSettings {
+		if (settings.textDisplayMode) {
+			return {
+				textDisplayMode: settings.textDisplayMode,
+				enableMarquee: settings.enableMarquee ?? MediaInfoAction.DEFAULT_SETTINGS.enableMarquee,
+				position: settings.position ?? MediaInfoAction.DEFAULT_SETTINGS.position,
+				action: settings.action ?? MediaInfoAction.DEFAULT_SETTINGS.action
+			};
+		}
+
+		const showTitle = settings.showTitle ?? true;
+		const showArtists = settings.showArtists ?? true;
+
+		let textDisplayMode: TextDisplayMode;
+		if (showTitle && showArtists) {
+			textDisplayMode = 'both';
+		} else if (showArtists) {
+			textDisplayMode = 'artists';
+		} else if (showTitle) {
+			textDisplayMode = 'title';
+		} else {
+			textDisplayMode = 'none';
+		}
+
 		return {
-			showTitle: loadedSettings.showTitle ?? MediaInfoAction.DEFAULT_SETTINGS.showTitle,
-			showArtists: loadedSettings.showArtists ?? MediaInfoAction.DEFAULT_SETTINGS.showArtists,
-			enableMarquee: loadedSettings.enableMarquee ?? MediaInfoAction.DEFAULT_SETTINGS.enableMarquee,
-			position: loadedSettings.position ?? MediaInfoAction.DEFAULT_SETTINGS.position,
-			action: loadedSettings.action ?? MediaInfoAction.DEFAULT_SETTINGS.action
+			textDisplayMode,
+			enableMarquee: settings.enableMarquee ?? MediaInfoAction.DEFAULT_SETTINGS.enableMarquee,
+			position: settings.position ?? MediaInfoAction.DEFAULT_SETTINGS.position,
+			action: settings.action ?? MediaInfoAction.DEFAULT_SETTINGS.action
 		};
 	}
 
@@ -222,15 +244,19 @@ export class MediaInfoAction extends SingletonAction<MediaInfoSettings> {
 
 	private updateMarqueeState(handler: ActionHandlerInfo, updateCallback: () => void | Promise<void>): void {
 		const { settings, titleMarquee, artistsMarquee } = handler;
+		const textDisplayMode = settings.textDisplayMode ?? 'both';
 
-		const shouldRunTitleMarquee = settings.enableMarquee && settings.showTitle;
+		const showTitle = textDisplayMode === 'both' || textDisplayMode === 'title';
+		const showArtists = textDisplayMode === 'both' || textDisplayMode === 'artists';
+
+		const shouldRunTitleMarquee = settings.enableMarquee && showTitle;
 		if (shouldRunTitleMarquee && !titleMarquee.isRunning()) {
 			titleMarquee.start(updateCallback);
 		} else if (!shouldRunTitleMarquee && titleMarquee.isRunning()) {
 			titleMarquee.stop();
 		}
 
-		const shouldRunArtistsMarquee = settings.enableMarquee && settings.showArtists;
+		const shouldRunArtistsMarquee = settings.enableMarquee && showArtists;
 		if (shouldRunArtistsMarquee && !artistsMarquee.isRunning()) {
 			artistsMarquee.start(updateCallback);
 		} else if (!shouldRunArtistsMarquee && artistsMarquee.isRunning()) {
@@ -301,9 +327,22 @@ export class MediaInfoAction extends SingletonAction<MediaInfoSettings> {
 	}
 
 	private buildDisplayText(info: MediaInfo, settings: MediaInfoSettings, titleMarquee: Marquee, artistsMarquee: Marquee): string | null {
+		const textDisplayMode = settings.textDisplayMode ?? 'both';
 		const parts: string[] = [];
 
-		if (settings.showArtists) {
+		if (textDisplayMode === 'none') {
+			return null;
+		}
+
+		if ((textDisplayMode === 'both' || textDisplayMode === 'title') && info.Title) {
+			if (settings.enableMarquee) {
+				parts.push(titleMarquee.getCurrentFrame());
+			} else {
+				parts.push(info.Title);
+			}
+		}
+
+		if (textDisplayMode === 'both' || textDisplayMode === 'artists') {
 			const artistText = this.getArtistText(info);
 			if (artistText) {
 				if (settings.enableMarquee) {
@@ -311,14 +350,6 @@ export class MediaInfoAction extends SingletonAction<MediaInfoSettings> {
 				} else {
 					parts.push(artistText);
 				}
-			}
-		}
-
-		if (settings.showTitle && info.Title) {
-			if (settings.enableMarquee) {
-				parts.push(titleMarquee.getCurrentFrame());
-			} else {
-				parts.push(info.Title);
 			}
 		}
 

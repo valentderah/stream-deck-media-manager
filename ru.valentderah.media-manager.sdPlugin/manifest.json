@@ -1,12 +1,12 @@
 {
-	"Name": "Media Manager",
-	"Version": "0.2.0.0",
+	"Name": "Current Media",
+	"Version": "0.9.0",
 	"Author": "Valiantsin Dzerakh",
 	"Actions": [
 		{
 			"Name": "Now Playing",
 			"UUID": "ru.valentderah.media-manager.media-info",
-			"Icon": "imgs/actions/media/media-info-icon",
+			"Icon": "imgs/actions/media/info",
 			"Tooltip": "Displays currently playing media.",
 			"PropertyInspectorPath": "ui/media-info.html",
 			"Controllers": [
@@ -14,7 +14,6 @@
 			],
 			"States": [
 				{
-					"Image": "imgs/actions/media/key",
 					"TitleAlignment": "bottom"
 				}
 			]
@@ -22,14 +21,14 @@
 		{
 			"Name": "Next Media",
 			"UUID": "ru.valentderah.media-manager.media-next",
-			"Icon": "imgs/actions/media/media-next-icon",
+			"Icon": "imgs/actions/media/next",
 			"Tooltip": "Skip to next track.",
 			"Controllers": [
 				"Keypad"
 			],
 			"States": [
 				{
-					"Image": "imgs/actions/media/media-next-icon",
+					"Image": "imgs/actions/media/key/next",
 					"TitleAlignment": "bottom"
 				}
 			]
@@ -37,20 +36,35 @@
 		{
 			"Name": "Previous Media",
 			"UUID": "ru.valentderah.media-manager.media-previous",
-			"Icon": "imgs/actions/media/media-previous-icon",
+			"Icon": "imgs/actions/media/prev",
 			"Tooltip": "Skip to previous track.",
 			"Controllers": [
 				"Keypad"
 			],
 			"States": [
 				{
-					"Image": "imgs/actions/media/media-previous-icon",
+					"Image": "imgs/actions/media/key/prev",
+					"TitleAlignment": "bottom"
+				}
+			]
+		},
+		{
+			"Name": "Play/Pause",
+			"UUID": "ru.valentderah.media-manager.media-play-pause",
+			"Icon": "imgs/actions/media/play-pause",
+			"Tooltip": "Toggle play/pause.",
+			"Controllers": [
+				"Keypad"
+			],
+			"States": [
+				{
+					"Image": "imgs/actions/media/key/play-pause",
 					"TitleAlignment": "bottom"
 				}
 			]
 		}
 	],
-	"Category": "Media Manager",
+	"Category": "Current Media",
 	"CategoryIcon": "imgs/plugin/category-icon",
 	"CodePath": "bin/plugin.js",
 	"Description": "Media Manager",
@@ -60,10 +74,7 @@
 		"MinimumVersion": "6.9"
 	},
 	"OS": [
-		{
-			"Platform": "mac",
-			"MinimumVersion": "12"
-		},
+
 		{
 			"Platform": "windows",
 			"MinimumVersion": "10"
