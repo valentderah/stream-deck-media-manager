@@ -61,37 +61,7 @@ export class Marquee {
 		this.updateCallback = undefined;
 	}
 
-	reset(): void {
-		this.position = 0;
-	}
-
-	getText(): string {
-		return this.text;
-	}
-
 	isRunning(): boolean {
 		return this.intervalId !== undefined;
 	}
-
-	setInterval(intervalMs: number): void {
-		this.intervalMs = intervalMs;
-		if (this.isRunning() && this.updateCallback) {
-			const callback = this.updateCallback;
-			this.stop();
-			this.start(callback);
-		}
-	}
-
-	getInterval(): number {
-		return this.intervalMs;
-	}
 }
-
-export function createMarquee(
-	maxLength: number = DEFAULT_MARQUEE_MAX_LENGTH,
-	separator: string = DEFAULT_MARQUEE_SEPARATOR,
-	intervalMs: number = DEFAULT_MARQUEE_INTERVAL_MS
-): Marquee {
-	return new Marquee(maxLength, separator, intervalMs);
-}
-

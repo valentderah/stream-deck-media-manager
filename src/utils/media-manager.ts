@@ -1,5 +1,6 @@
-import { spawn, type ChildProcessWithoutNullStreams } from 'child_process';
+import {spawn, type ChildProcessWithoutNullStreams} from 'child_process';
 import path from 'path';
+import {RELOAD_DELAY, PROCESS_DELAY} from './constants';
 
 export type MediaInfo = {
 	Title?: string;
@@ -35,16 +36,22 @@ class MediaManagerService {
 	private buffer: string = '';
 	private restartAttempts: number = 0;
 	private maxRestartAttempts: number = 5;
-	private restartDelay: number = 1000; // 1 секунда
+	private restartDelay: number = RELOAD_DELAY;
 	private isRestarting: boolean = false;
 	private isShuttingDown: boolean = false;
 
 	public subscribe(callback: (result: MediaManagerResult) => void): () => void {
+		const wasProcessRunning = this.process !== null && this.process.exitCode === null;
 		this.subscribers.add(callback);
-		// Если есть подписчики, но процесса нет - запускаем его
+		
 		if (!this.process && !this.isRestarting) {
 			this.start();
+		} else if (wasProcessRunning) {
+			setTimeout(() => {
+				this.requestUpdate();
+			}, RELOAD_DELAY);
 		}
+		
 		return () => {
 			this.unsubscribe(callback);
 		};
@@ -58,7 +65,7 @@ class MediaManagerService {
 			this.process.kill();
 			this.process = null;
 			this.isShuttingDown = false;
-			this.restartAttempts = 0; // Сбрасываем счётчик попыток
+			this.restartAttempts = 0;
 		}
 	}
 
@@ -74,10 +81,9 @@ class MediaManagerService {
 
 	private async restartProcess(): Promise<void> {
 		if (this.isRestarting || this.isShuttingDown) return;
-		if (this.subscribers.size === 0) return; // Нет подписчиков - не перезапускаем
+		if (this.subscribers.size === 0) return;
 
 		if (this.restartAttempts >= this.maxRestartAttempts) {
-			console.error(`MediaManager: Max restart attempts (${this.maxRestartAttempts}) reached. Stopping.`);
 			this.notifySubscribers({
 				success: false,
 				error: {
@@ -91,10 +97,7 @@ class MediaManagerService {
 
 		this.isRestarting = true;
 		this.restartAttempts++;
-		
-		console.log(`MediaManager: Attempting to restart process (attempt ${this.restartAttempts}/${this.maxRestartAttempts})...`);
 
-		// Ждём перед перезапуском
 		await new Promise(resolve => setTimeout(resolve, this.restartDelay));
 
 		if (this.subscribers.size > 0 && !this.isShuttingDown) {
@@ -116,7 +119,7 @@ class MediaManagerService {
 			this.process.stdout.on('data', (data: Buffer) => {
 				this.buffer += data.toString();
 				const lines = this.buffer.split('\n');
-				this.buffer = lines.pop() || ''; // Keep the last, possibly incomplete, line
+				this.buffer = lines.pop() || '';
 
 				for (const line of lines) {
 					if (line.trim().length === 0) continue;
@@ -128,7 +131,6 @@ class MediaManagerService {
 								error: { type: 'NOTHING_PLAYING', message: 'No media data available' }
 							});
 						} else {
-							// Успешный ответ - сбрасываем счётчик попыток перезапуска
 							this.restartAttempts = 0;
 							this.notifySubscribers({ success: true, data: info });
 						}
@@ -144,8 +146,13 @@ class MediaManagerService {
 				}
 			});
 
+			if (this.subscribers.size > 0) {
+				setTimeout(() => {
+					this.requestUpdate();
+				}, PROCESS_DELAY);
+			}
+
 			this.process.stderr.on('data', (data: Buffer) => {
-				console.error(`MediaManager stderr: ${data}`);
 				this.notifySubscribers({
 					success: false,
 					error: { type: 'HELPER_ERROR', message: data.toString() }
@@ -153,35 +160,29 @@ class MediaManagerService {
 			});
 
 			this.process.on('error', (err) => {
-				console.error('Failed to start MediaManager process.', err);
 				const errorType: MediaManagerErrorType = err.message.includes('ENOENT') ? 'FILE_NOT_FOUND' : 'HELPER_ERROR';
 				this.notifySubscribers({
 					success: false,
 					error: { type: errorType, message: err.message }
 				});
 				this.process = null;
-				// Если процесс не смог запуститься и есть подписчики - пытаемся перезапустить
 				if (this.subscribers.size > 0 && !this.isShuttingDown && errorType !== 'FILE_NOT_FOUND') {
 					this.restartProcess();
 				}
 			});
 
 			this.process.on('close', (code) => {
-				console.log(`MediaManager process exited with code ${code}`);
 				const wasProcess = this.process !== null;
 				this.process = null;
 
-				// Если процесс завершился неожиданно (не по нашей инициативе) и есть подписчики - перезапускаем
 				if (!this.isShuttingDown && this.subscribers.size > 0 && wasProcess) {
 					this.restartProcess();
 				} else {
-					// Если мы сами завершили процесс или нет подписчиков - сбрасываем счётчик
 					this.restartAttempts = 0;
 				}
 			});
 
 		} catch (error) {
-			console.error('Exception while starting MediaManager process:', error);
 			this.process = null;
 			this.notifySubscribers({
 				success: false,
@@ -209,16 +210,10 @@ class MediaManagerService {
 		}
 	}
 
-	/**
-	 * Запрашивает немедленное обновление текущего состояния медиа
-	 */
 	public requestUpdate(): void {
 		this.sendCommand('update');
 	}
 
-	/**
-	 * Проверяет, запущен ли процесс
-	 */
 	public isProcessRunning(): boolean {
 		return this.process !== null && this.process.exitCode === null;
 	}

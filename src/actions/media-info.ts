@@ -1,6 +1,29 @@
-import { action, DialAction, DidReceiveSettingsEvent, KeyAction, KeyDownEvent, SingletonAction, WillAppearEvent, WillDisappearEvent } from '@elgato/streamdeck';
-import { Marquee } from '../utils/marquee';
-import { mediaManagerService, toggleMediaPlayPause, nextMedia, previousMedia, type MediaInfo, type MediaManagerError, type MediaManagerResult } from '../utils/media-manager';
+import {
+	action,
+	DialAction,
+	DidReceiveSettingsEvent,
+	KeyAction,
+	KeyDownEvent,
+	SingletonAction,
+	WillAppearEvent,
+	WillDisappearEvent
+} from '@elgato/streamdeck';
+import {Marquee} from '../utils/marquee';
+import {
+	mediaManagerService,
+	toggleMediaPlayPause,
+	nextMedia,
+	previousMedia,
+	type MediaInfo,
+	type MediaManagerError,
+	type MediaManagerResult
+} from '../utils/media-manager';
+import {generatePlaceholderImage} from '../utils/image-utils';
+import {
+	IMAGE_SIZE_FULL,
+	IMAGE_SIZE_SINGLE_CELL,
+	RELOAD_DELAY, PROCESS_DELAY
+} from '../utils/constants';
 
 type ActionType = 'toggle' | 'next' | 'previous' | 'none';
 
@@ -10,6 +33,13 @@ type MediaInfoSettings = {
 	enableMarquee?: boolean;
 	position?: 'none' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 	action?: ActionType;
+};
+
+type ActionHandlerInfo = {
+	settings: MediaInfoSettings;
+	titleMarquee: Marquee;
+	artistsMarquee: Marquee;
+	currentMediaInfo: MediaInfo | null;
 };
 
 @action({ UUID: 'ru.valentderah.media-manager.media-info' })
@@ -29,65 +59,50 @@ export class MediaInfoAction extends SingletonAction<MediaInfoSettings> {
 		NOTHING_PLAYING: 'Nothing\nPlaying'
 	} as const;
 
-	/**
-	 * @param size Default is 144px for one cell
-	 */
-	private static generatePlaceholderImage(size: number = 144): string {
+	private readonly actionHandlers = new Map<DialAction<MediaInfoSettings> | KeyAction<MediaInfoSettings>, ActionHandlerInfo>();
 
-		const svg = `<svg width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg">
-			<rect width="${size}" height="${size}" fill="#242424"/>
-		</svg>`;
-		const base64 = Buffer.from(svg).toString('base64');
-		return `data:image/svg+xml;base64,${base64}`;
+	private getPlaceholderSize(position: string): number {
+		return position === 'none' ? IMAGE_SIZE_FULL : IMAGE_SIZE_SINGLE_CELL;
 	}
-
-	private readonly actionHandlers = new Map<DialAction<MediaInfoSettings> | KeyAction<MediaInfoSettings>, {
-		settings: MediaInfoSettings;
-		titleMarquee: Marquee;
-		artistsMarquee: Marquee;
-		currentMediaInfo: MediaInfo | null;
-		unsubscribe: (() => void) | undefined;
-	}>();
 
 	constructor() {
 		super();
 		mediaManagerService.subscribe(this.handleMediaUpdateForAll.bind(this));
+		
+		if (mediaManagerService.isProcessRunning()) {
+			setTimeout(() => {
+				mediaManagerService.requestUpdate();
+			}, RELOAD_DELAY);
+		}
 	}
 
 	override async onWillAppear(ev: WillAppearEvent<MediaInfoSettings>): Promise<void> {
 		const action = ev.action as DialAction<MediaInfoSettings> | KeyAction<MediaInfoSettings>;
 		const settings = await this.loadSettings(action);
 
-		const handler = {
+		const handler: ActionHandlerInfo = {
 			settings,
 			titleMarquee: new Marquee(),
 			artistsMarquee: new Marquee(),
-			currentMediaInfo: null as MediaInfo | null,
-			unsubscribe: undefined as (() => void) | undefined
+			currentMediaInfo: null
 		};
 
 		this.actionHandlers.set(action, handler);
-		
-		const wasProcessRunning = mediaManagerService.isProcessRunning();
+
 		mediaManagerService.start();
-		
+
 		setTimeout(() => {
 			mediaManagerService.requestUpdate();
-		}, wasProcessRunning ? 50 : 200);
+		}, PROCESS_DELAY);
 	}
 
 	override onWillDisappear(ev: WillDisappearEvent<MediaInfoSettings>): void | Promise<void> {
 		const action = ev.action as DialAction<MediaInfoSettings> | KeyAction<MediaInfoSettings>;
 		const handler = this.actionHandlers.get(action);
-		
+
 		if (handler) {
 			handler.titleMarquee.stop();
 			handler.artistsMarquee.stop();
-
-			if (handler.unsubscribe) {
-				handler.unsubscribe();
-			}
-			
 			this.actionHandlers.delete(action);
 		}
 
@@ -99,11 +114,11 @@ export class MediaInfoAction extends SingletonAction<MediaInfoSettings> {
 	override onKeyDown(ev: KeyDownEvent<MediaInfoSettings>): void {
 		const action = ev.action as KeyAction<MediaInfoSettings>;
 		const handler = this.actionHandlers.get(action);
-		
+
 		if (!handler) return;
-		
+
 		const actionType = handler.settings.action ?? MediaInfoAction.DEFAULT_SETTINGS.action ?? 'toggle';
-		
+
 		switch (actionType) {
 			case 'toggle':
 				toggleMediaPlayPause();
@@ -122,9 +137,9 @@ export class MediaInfoAction extends SingletonAction<MediaInfoSettings> {
 	override async onDidReceiveSettings(ev: DidReceiveSettingsEvent<MediaInfoSettings>): Promise<void> {
 		const action = ev.action as DialAction<MediaInfoSettings> | KeyAction<MediaInfoSettings>;
 		const handler = this.actionHandlers.get(action);
-		
+
 		if (!handler) return;
-		
+
 		handler.settings = {
 			showTitle: ev.payload.settings.showTitle ?? MediaInfoAction.DEFAULT_SETTINGS.showTitle,
 			showArtists: ev.payload.settings.showArtists ?? MediaInfoAction.DEFAULT_SETTINGS.showArtists,
@@ -132,7 +147,6 @@ export class MediaInfoAction extends SingletonAction<MediaInfoSettings> {
 			position: ev.payload.settings.position ?? MediaInfoAction.DEFAULT_SETTINGS.position,
 			action: ev.payload.settings.action ?? MediaInfoAction.DEFAULT_SETTINGS.action
 		};
-
 
 		if (handler.currentMediaInfo) {
 			await this.updateAction(action, handler, { success: true, data: handler.currentMediaInfo });
@@ -150,30 +164,27 @@ export class MediaInfoAction extends SingletonAction<MediaInfoSettings> {
 		};
 	}
 
-
 	private async handleMediaUpdateForAll(result: MediaManagerResult): Promise<void> {
+		if (this.actionHandlers.size === 0) {
+			return;
+		}
+
 		for (const [action, handler] of this.actionHandlers.entries()) {
 			await this.updateAction(action, handler, result);
 		}
 	}
 
-	private async updateAction(action: DialAction<MediaInfoSettings> | KeyAction<MediaInfoSettings>, handler: {
-		settings: MediaInfoSettings;
-		titleMarquee: Marquee;
-		artistsMarquee: Marquee;
-		currentMediaInfo: MediaInfo | null;
-		unsubscribe: (() => void) | undefined;
-	}, result: MediaManagerResult): Promise<void> {
+	private async updateAction(action: DialAction<MediaInfoSettings> | KeyAction<MediaInfoSettings>, handler: ActionHandlerInfo, result: MediaManagerResult): Promise<void> {
 		const { settings, titleMarquee, artistsMarquee } = handler;
 
 		if (!result.success) {
 			handler.currentMediaInfo = null;
 			titleMarquee.stop();
 			artistsMarquee.stop();
-			
+
 			if (result.error.type === 'NOTHING_PLAYING') {
-				const placeholderSize = settings.position === 'none' ? 288 : 144;
-				const placeholderImage = MediaInfoAction.generatePlaceholderImage(placeholderSize);
+				const placeholderSize = this.getPlaceholderSize(settings.position ?? 'none');
+				const placeholderImage = generatePlaceholderImage(placeholderSize);
 				await action.setImage(placeholderImage);
 				await action.setTitle('');
 			} else {
@@ -209,13 +220,9 @@ export class MediaInfoAction extends SingletonAction<MediaInfoSettings> {
 		await this.updateMarqueeTitle(action, handler);
 	}
 
-	private updateMarqueeState(handler: {
-		settings: MediaInfoSettings;
-		titleMarquee: Marquee;
-		artistsMarquee: Marquee;
-	}, updateCallback: () => void | Promise<void>): void {
+	private updateMarqueeState(handler: ActionHandlerInfo, updateCallback: () => void | Promise<void>): void {
 		const { settings, titleMarquee, artistsMarquee } = handler;
-		
+
 		const shouldRunTitleMarquee = settings.enableMarquee && settings.showTitle;
 		if (shouldRunTitleMarquee && !titleMarquee.isRunning()) {
 			titleMarquee.start(updateCallback);
@@ -231,9 +238,7 @@ export class MediaInfoAction extends SingletonAction<MediaInfoSettings> {
 		}
 	}
 
-	private async updateActionImage(action: DialAction<MediaInfoSettings> | KeyAction<MediaInfoSettings>, handler: {
-		settings: MediaInfoSettings;
-	}, info: MediaInfo): Promise<void> {
+	private async updateActionImage(action: DialAction<MediaInfoSettings> | KeyAction<MediaInfoSettings>, handler: ActionHandlerInfo, info: MediaInfo): Promise<void> {
 		const { settings } = handler;
 		const position = settings.position ?? 'none';
 
@@ -241,8 +246,7 @@ export class MediaInfoAction extends SingletonAction<MediaInfoSettings> {
 			if (info.CoverArtBase64) {
 				await action.setImage(`data:image/png;base64,${info.CoverArtBase64}`);
 			} else {
-				// Если нет обложки, показываем серый плейсхолдер
-				const placeholderImage = MediaInfoAction.generatePlaceholderImage(288);
+				const placeholderImage = generatePlaceholderImage(IMAGE_SIZE_FULL);
 				await action.setImage(placeholderImage);
 			}
 			return;
@@ -264,18 +268,15 @@ export class MediaInfoAction extends SingletonAction<MediaInfoSettings> {
 				break;
 		}
 
-
 		if (partBase64) {
 			await action.setImage(`data:image/png;base64,${partBase64}`);
 		} else if (info.CoverArtBase64) {
 			await action.setImage(`data:image/png;base64,${info.CoverArtBase64}`);
 		} else {
-			// Если нет обложки, показываем серый плейсхолдер
-			const placeholderImage = MediaInfoAction.generatePlaceholderImage(144);
+			const placeholderImage = generatePlaceholderImage(IMAGE_SIZE_SINGLE_CELL);
 			await action.setImage(placeholderImage);
 		}
 	}
-
 
 	private getArtistText(info: MediaInfo): string {
 		if (info.Artists && info.Artists.length > 0) {
@@ -284,18 +285,12 @@ export class MediaInfoAction extends SingletonAction<MediaInfoSettings> {
 		return info.Artist || '';
 	}
 
-	private async updateMarqueeTitle(action: DialAction<MediaInfoSettings> | KeyAction<MediaInfoSettings>, handler: {
-		settings: MediaInfoSettings;
-		currentMediaInfo: MediaInfo | null;
-		titleMarquee: Marquee;
-		artistsMarquee: Marquee;
-	}): Promise<void> {
+	private async updateMarqueeTitle(action: DialAction<MediaInfoSettings> | KeyAction<MediaInfoSettings>, handler: ActionHandlerInfo): Promise<void> {
 		const { settings, currentMediaInfo, titleMarquee, artistsMarquee } = handler;
 
 		if (!currentMediaInfo) {
-			// Устанавливаем серый плейсхолдер и пустой заголовок
-			const placeholderSize = settings.position === 'none' ? 288 : 144;
-			const placeholderImage = MediaInfoAction.generatePlaceholderImage(placeholderSize);
+			const placeholderSize = this.getPlaceholderSize(settings.position ?? 'none');
+			const placeholderImage = generatePlaceholderImage(placeholderSize);
 			await action.setImage(placeholderImage);
 			await action.setTitle('');
 			return;
