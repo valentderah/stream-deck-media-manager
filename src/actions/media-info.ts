@@ -67,8 +67,13 @@ export class MediaInfoAction extends SingletonAction<MediaInfoSettings> {
 		};
 
 		this.actionHandlers.set(action, handler);
+		
+		const wasProcessRunning = mediaManagerService.isProcessRunning();
 		mediaManagerService.start();
-
+		
+		setTimeout(() => {
+			mediaManagerService.requestUpdate();
+		}, wasProcessRunning ? 50 : 200);
 	}
 
 	override onWillDisappear(ev: WillDisappearEvent<MediaInfoSettings>): void | Promise<void> {
