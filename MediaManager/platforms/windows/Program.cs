@@ -243,13 +243,13 @@ class Program
     {
         var aspectRatio = (double)originalWidth / originalHeight;
         uint scaledWidth, scaledHeight;
-        int offsetX = 0, offsetY = 0;
+        int offsetX = 0;
+        int offsetY = 0;
         
         if (aspectRatio > 1.0)
         {
             scaledWidth = (uint)targetSize;
             scaledHeight = (uint)Math.Round(targetSize / aspectRatio);
-            offsetY = (targetSize - (int)scaledHeight) / 2;
         }
         else
         {
