@@ -12,11 +12,9 @@ namespace MediaManager.Windows;
 class MediaSessionManager
 {
     private static readonly SemaphoreSlim _updateSemaphore = new SemaphoreSlim(1, 1);
-    private static GlobalSystemMediaTransportControlsSession? _currentSession;
     private static GlobalSystemMediaTransportControlsSessionManager? _sessionManager;
     private static readonly HashSet<string> _subscribedSessions = new HashSet<string>();
-    private static string? _lastTrackTitle;
-    private static string? _lastTrackArtist;
+    private static GlobalSystemMediaTransportControlsSession? _lastActiveSession;
     private static Timer? _updateDebounceTimer;
     private static readonly object _debounceLock = new object();
 
@@ -25,8 +23,7 @@ class MediaSessionManager
         var sessionManager = await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
         _sessionManager = sessionManager;
         sessionManager.CurrentSessionChanged += (s, e) => OnSessionChanged(s);
-        sessionManager.SessionsChanged += OnSessionsChanged;
-        OnSessionChanged(sessionManager);
+        sessionManager.SessionsChanged += (s, e) => OnSessionsChanged(s);
         SubscribeToAllSessions(sessionManager);
 
         while (true)
@@ -48,15 +45,13 @@ class MediaSessionManager
                         await TogglePlayPauseAsync();
                         break;
                     case "next":
-                        await NextTrackAsync();
-                        _ = Task.Run(async () => await WaitForTrackChangeAsync());
+                        await NextTrackAsync();                        
                         break;
                     case "previous":
-                        await PreviousTrackAsync();
-                        _ = Task.Run(async () => await WaitForTrackChangeAsync());
+                        await PreviousTrackAsync();                        
                         break;
                     case "update":
-                        _ = UpdateCurrentMediaInfoAsync();
+                        await UpdateCurrentMediaInfoAsync();
                         break;
                 }
             }
@@ -64,17 +59,17 @@ class MediaSessionManager
             {
                 break;
             }
-            catch
+            catch (Exception ex)
             {
+                await Console.Error.WriteLineAsync($"Error in command loop: {ex.Message}");
                 continue;
             }
         }
     }
 
-    private static void OnSessionsChanged(GlobalSystemMediaTransportControlsSessionManager manager, SessionsChangedEventArgs args)
+    private static void OnSessionsChanged(GlobalSystemMediaTransportControlsSessionManager manager)
     {
         SubscribeToAllSessions(manager);
-        OnSessionChanged(manager);
     }
 
     private static void SubscribeToSession(GlobalSystemMediaTransportControlsSession session)
@@ -89,20 +84,9 @@ class MediaSessionManager
                 _subscribedSessions.Add(sessionId);
             }
         }
-        catch
+        catch (Exception ex)
         {
-        }
-    }
-
-    private static void UnsubscribeFromSession(GlobalSystemMediaTransportControlsSession session)
-    {
-        try
-        {
-            session.MediaPropertiesChanged -= OnMediaPropertiesChanged;
-            session.PlaybackInfoChanged -= OnPlaybackInfoChanged;
-        }
-        catch
-        {
+            Console.Error.WriteLine($"Failed to subscribe to session: {ex.Message}");
         }
     }
 
@@ -116,28 +100,15 @@ class MediaSessionManager
                 SubscribeToSession(session);
             }
         }
-        catch
+        catch (Exception ex)
         {
+            Console.Error.WriteLine($"Failed to subscribe to all sessions: {ex.Message}");
         }
     }
 
     private static void OnSessionChanged(GlobalSystemMediaTransportControlsSessionManager manager)
     {
-        _sessionManager = manager;
-        
-        if (_currentSession != null)
-        {
-            UnsubscribeFromSession(_currentSession);
-        }
-
-        _currentSession = FindBestMediaSession(manager);
-
-        if (_currentSession != null)
-        {
-            SubscribeToSession(_currentSession);
-        }
-
-        _ = UpdateCurrentMediaInfoAsync();
+        DebouncedUpdate(100);
     }
 
     private static void OnPlaybackInfoChanged(GlobalSystemMediaTransportControlsSession session, PlaybackInfoChangedEventArgs args)
@@ -172,8 +143,9 @@ class MediaSessionManager
             var json = JsonSerializer.Serialize(mediaInfo, MediaInfoJsonContext.Default.MediaInfo);
             await Console.Out.WriteLineAsync(json);
         }
-        catch
+        catch (Exception ex)
         {
+            await Console.Error.WriteLineAsync($"Error updating media info: {ex.Message}");
         }
         finally
         {
@@ -200,16 +172,18 @@ class MediaSessionManager
             {
                 mediaProperties = await activeSession.TryGetMediaPropertiesAsync();
             }
-            catch
+            catch (Exception ex)
             {
+                await Console.Error.WriteLineAsync($"Error getting media properties: {ex.Message}");
             }
 
             try
             {
                 playbackInfo = activeSession.GetPlaybackInfo();
             }
-            catch
+            catch (Exception ex)
             {
+                await Console.Error.WriteLineAsync($"Error getting playback info: {ex.Message}");
             }
 
             if (playbackInfo == null)
@@ -225,16 +199,14 @@ class MediaSessionManager
                     var artistParts = mediaProperties.Artist.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries);
                     artists.AddRange(artistParts.Select(a => a.Trim()).Where(a => !string.IsNullOrEmpty(a)));
                 }
-                catch
+                catch (Exception ex)
                 {
+                    await Console.Error.WriteLineAsync($"Error parsing artists: {ex.Message}");
                 }
             }
 
             var title = mediaProperties?.Title ?? string.Empty;
             var artist = mediaProperties?.Artist ?? string.Empty;
-
-            _lastTrackTitle = title;
-            _lastTrackArtist = artist;
 
             var info = new MediaInfo
             {
@@ -251,6 +223,11 @@ class MediaSessionManager
                     _ => "Stopped"
                 }
             };
+            
+            if (info.Status == "Playing")
+            {
+                _lastActiveSession = activeSession;
+            }
 
             if (mediaProperties != null && mediaProperties.Thumbnail != null)
             {
@@ -258,15 +235,17 @@ class MediaSessionManager
                 {
                     await ThumbnailProcessor.ProcessThumbnailAsync(mediaProperties.Thumbnail, info);
                 }
-                catch
+                catch (Exception ex)
                 {
+                    await Console.Error.WriteLineAsync($"Error processing thumbnail: {ex.Message}");
                 }
             }
 
             return info;
         }
-        catch
+        catch (Exception ex)
         {
+            await Console.Error.WriteLineAsync($"Error in GetCurrentMediaInfoAsync: {ex.Message}");
             return new MediaInfo();
         }
     }
@@ -275,103 +254,58 @@ class MediaSessionManager
     {
         try
         {
-            GlobalSystemMediaTransportControlsSession? currentSession = null;
-            try
-            {
-                currentSession = manager.GetCurrentSession();
-            }
-            catch
-            {
-            }
-
-            if (currentSession != null)
-            {
-                try
-                {
-                    var playbackInfo = currentSession.GetPlaybackInfo();
-                    if (playbackInfo.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing)
-                    {
-                        return currentSession;
-                    }
-                }
-                catch
-                {
-                }
-            }
-
-            List<GlobalSystemMediaTransportControlsSession> allSessions;
-            try
-            {
-                allSessions = manager.GetSessions().ToList();
-            }
-            catch
-            {
-                return currentSession;
-            }
-
-            var playingSessions = new List<GlobalSystemMediaTransportControlsSession>();
+            var allSessions = manager.GetSessions();
+            GlobalSystemMediaTransportControlsSession? pausedLastActive = null;
+            GlobalSystemMediaTransportControlsSession? pausedCurrent = null;
+            GlobalSystemMediaTransportControlsSession? anyPaused = null;
+            
+            // 1. Абсолютный приоритет: любая играющая сессия.
             foreach (var session in allSessions)
             {
                 try
                 {
                     var playbackInfo = session.GetPlaybackInfo();
+                    if (playbackInfo == null) continue;
+                    
                     if (playbackInfo.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing)
                     {
-                        playingSessions.Add(session);
+                        return session; // Нашли играющую, немедленно возвращаем.
                     }
-                }
-                catch
-                {
-                }
-            }
-
-            if (playingSessions.Count > 0)
-            {
-                if (currentSession != null && playingSessions.Contains(currentSession))
-                {
-                    return currentSession;
-                }
-                return playingSessions.FirstOrDefault();
-            }
-
-            var pausedSessions = new List<GlobalSystemMediaTransportControlsSession>();
-            foreach (var session in allSessions)
-            {
-                try
-                {
-                    var playbackInfo = session.GetPlaybackInfo();
+                    
                     if (playbackInfo.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Paused)
                     {
-                        pausedSessions.Add(session);
+                        // Собираем кандидатов на случай, если играющих нет
+                        if (_lastActiveSession != null && session.SourceAppUserModelId == _lastActiveSession.SourceAppUserModelId)
+                        {
+                            pausedLastActive = session;
+                        }
+                        var currentSystemSession = manager.GetCurrentSession();
+                        if (currentSystemSession != null && session.SourceAppUserModelId == currentSystemSession.SourceAppUserModelId)
+                        {
+                            pausedCurrent = session;
+                        }
+                        if (anyPaused == null)
+                        {
+                            anyPaused = session;
+                        }
                     }
                 }
-                catch
+                catch (Exception ex)
                 {
+                    Console.Error.WriteLine($"Error finding best session: {ex.Message}");
                 }
             }
 
-            if (pausedSessions.Count > 0 && currentSession != null && pausedSessions.Contains(currentSession))
-            {
-                return currentSession;
-            }
-
-            if (currentSession != null)
-            {
-                return currentSession;
-            }
-
-            return allSessions.FirstOrDefault();
+            // 2. Если играющих нет, возвращаем в порядке приоритета "на паузе".
+            return pausedLastActive 
+                ?? pausedCurrent 
+                ?? anyPaused 
+                ?? allSessions.FirstOrDefault();
         }
-        catch
+        catch (Exception ex)
         {
-            try
-            {
-                return manager.GetCurrentSession();
-            }
-            catch
-            {
-                return null;
-            }
+            Console.Error.WriteLine($"Critical error in FindBestMediaSession: {ex.Message}");
+            return null;
         }
     }
 
@@ -391,8 +325,9 @@ class MediaSessionManager
                 await activeSession.TryTogglePlayPauseAsync();
             }
         }
-        catch
+        catch (Exception ex)
         {
+            await Console.Error.WriteLineAsync($"Error toggling play/pause: {ex.Message}");
         }
     }
 
@@ -406,8 +341,9 @@ class MediaSessionManager
                 await activeSession.TrySkipNextAsync();
             }
         }
-        catch
+        catch (Exception ex)
         {
+            await Console.Error.WriteLineAsync($"Error skipping next: {ex.Message}");
         }
     }
 
@@ -421,51 +357,9 @@ class MediaSessionManager
                 await activeSession.TrySkipPreviousAsync();
             }
         }
-        catch
+        catch (Exception ex)
         {
+            await Console.Error.WriteLineAsync($"Error skipping previous: {ex.Message}");
         }
-    }
-
-    private static async Task WaitForTrackChangeAsync()
-    {
-        var lastTitle = _lastTrackTitle ?? string.Empty;
-        var lastArtist = _lastTrackArtist ?? string.Empty;
-        var attempts = 0;
-        var maxAttempts = 10;
-        var delayMs = 200;
-
-        while (attempts < maxAttempts)
-        {
-            await Task.Delay(delayMs);
-
-            var session = await GetActiveSessionAsync();
-            if (session != null)
-            {
-                try
-                {
-                    var props = await session.TryGetMediaPropertiesAsync();
-                    if (props != null)
-                    {
-                        var currentTitle = props.Title ?? string.Empty;
-                        var currentArtist = props.Artist ?? string.Empty;
-
-                        if ((!string.IsNullOrEmpty(currentTitle) || !string.IsNullOrEmpty(currentArtist)) &&
-                            (currentTitle != lastTitle || currentArtist != lastArtist))
-                        {
-                            _lastTrackTitle = currentTitle;
-                            _lastTrackArtist = currentArtist;
-                            await UpdateCurrentMediaInfoAsync();
-                            return;
-                        }
-                    }
-                }
-                catch
-                {
-                }
-            }
-            attempts++;
-        }
-
-        await UpdateCurrentMediaInfoAsync();
     }
 }
