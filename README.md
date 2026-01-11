@@ -2,7 +2,7 @@ English | [Русский](README.ru.md)
 
 # Current Media
 
-<img width="553" height="419" alt="image" src="ru.valentderah.current-media.sdPlugin/imgs/banner.png" />
+<img alt="image" src="ru.valentderah.current-media.sdPlugin/imgs/banner.png" />
 
 A Stream Deck plugin that displays information about currently playing media and provides playback controls.
 

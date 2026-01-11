@@ -2,7 +2,7 @@
 
 # Current Media
 
-<img width="553" height="419" alt="image" src="ru.valentderah.current-media.sdPlugin/imgs/banner.png" />
+<img alt="image" src="ru.valentderah.current-media.sdPlugin/imgs/banner.png" />
 
 Плагин для Stream Deck, который отображает информацию о текущем воспроизводимом медиа и предоставляет элементы управления воспроизведением.
 
