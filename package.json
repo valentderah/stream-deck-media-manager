@@ -3,7 +3,10 @@
         "build:helper": "cd MediaManager/platforms/windows && build.bat",
         "build:ts": "rollup -c",
         "build": "npm run build:helper && npm run build:ts",
-        "watch": "rollup -c -w --watch.onEnd=\"streamdeck restart ru.valentderah.current-media\""
+        "watch": "rollup -c -w --watch.onEnd=\"streamdeck restart ru.valentderah.current-media\"",
+        "pack": "streamdeck pack ru.valentderah.current-media.sdPlugin",
+        "validate": "streamdeck validate ru.valentderah.current-media.sdPlugin",
+        "release": "npm run build && npm run pack"
     },
     "type": "module",
     "devDependencies": {

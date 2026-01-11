@@ -1,0 +1,7 @@
+*.js.map
+
+logs/
+*.log
+
+*.tmp
+*.temp

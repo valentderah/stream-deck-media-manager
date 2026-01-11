@@ -1,6 +1,6 @@
 {
 	"Name": "Current Media",
-	"Version": "0.9.0",
+	"Version": "0.9.0.0",
 	"Author": "Valiantsin Dzerakh",
 	"Actions": [
 		{
@@ -14,6 +14,7 @@
 			],
 			"States": [
 				{
+					"Image": "imgs/actions/media/info",
 					"TitleAlignment": "bottom"
 				}
 			]
@@ -74,7 +75,6 @@
 		"MinimumVersion": "6.9"
 	},
 	"OS": [
-
 		{
 			"Platform": "windows",
 			"MinimumVersion": "10"
