@@ -37,6 +37,7 @@ static class AppIconProcessor
         }
         catch
         {
+            // ignored
         }
         return null;
     }
@@ -88,6 +89,7 @@ static class AppIconProcessor
                 }
                 catch
                 {
+                    // ignored
                 }
             }
 
@@ -103,30 +105,29 @@ static class AppIconProcessor
 
             if (!packages.Any())
             {
-                if (appUserModelId.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+                try
                 {
-                    try
+                    var exePath = FindExecutablePath(appUserModelId);
+                    if (!string.IsNullOrEmpty(exePath) && File.Exists(exePath))
                     {
-                        var exePath = FindExecutablePath(appUserModelId);
-                        if (!string.IsNullOrEmpty(exePath) && File.Exists(exePath))
+                        try
                         {
-                            try
+                            var result = await ImageUtils.ConvertIconToBase64Async(exePath, IconSize);
+                            if (!string.IsNullOrEmpty(result))
                             {
-                                var result = await ImageUtils.ConvertIconToBase64Async(exePath, IconSize);
-                                if (!string.IsNullOrEmpty(result))
-                                {
-                                    _iconCache.TryAdd(appUserModelId, result);
-                                    return result;
-                                }
-                            }
-                            catch
-                            {
+                                _iconCache.TryAdd(appUserModelId, result);
+                                return result;
                             }
                         }
+                        catch
+                        {
+                            // ignored
+                        }
                     }
-                    catch
-                    {
-                    }
+                }
+                catch
+                {
+                    // ignored
                 }
 
                 return string.Empty;
@@ -170,6 +171,7 @@ static class AppIconProcessor
         }
         catch
         {
+            // ignored
         }
 
         return string.Empty;
