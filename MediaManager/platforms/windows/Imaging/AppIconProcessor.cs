@@ -70,7 +70,7 @@ static class AppIconProcessor
                             using var stream = await logoStreamRef.OpenReadAsync();
                             if (stream != null && stream.Size > 0)
                             {
-                                var decoder = await BitmapDecoder.CreateAsync(stream);
+                                var decoder = await BitmapDecoder.CreateAsync(stream!);
                                 var transform = new BitmapTransform
                                 {
                                     ScaledWidth = IconSize,

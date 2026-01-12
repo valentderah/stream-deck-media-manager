@@ -18,6 +18,9 @@
     <type fullname="System.Text.Json.Serialization.JsonSerializerOptions" preserve="all" />
   </assembly>
   
+  <!-- Microsoft.CSharp.RuntimeBinder - необходимо для работы с dynamic типами -->
+  <assembly fullname="Microsoft.CSharp" preserve="all" />
+  
   <!-- Базовые системные сборки - агрессивная обрезка неиспользуемых частей -->
   <assembly fullname="System.Runtime" preserve="nothing" />
   <assembly fullname="System.Console" preserve="nothing" />
