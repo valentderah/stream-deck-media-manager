@@ -1,6 +1,8 @@
 {
     "scripts": {
-        "build:helper": "cd MediaManager/platforms/windows && build.bat",
+        "build:helper:windows": "cd MediaManager/platforms/windows && build.bat",
+        "build:helper:macos": "cd MediaManager/platforms/macos && chmod +x build.sh && ./build.sh",
+        "build:helper": "npm run build:helper:windows",
         "build:ts": "rollup -c",
         "build": "npm run build:helper && npm run build:ts",
         "watch": "rollup -c -w --watch.onEnd=\"streamdeck restart ru.valentderah.current-media\"",
