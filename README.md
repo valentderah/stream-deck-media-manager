@@ -1,29 +1,29 @@
-English | [Русский](README.ru.md)
+[English](README.md) | Russian
 
-# Current Media
+# Current Media (Now Playing)
 
 <img alt="image" src="ru.valentderah.current-media.sdPlugin/imgs/banner.png" />
 
-A Stream Deck plugin that displays information about currently playing media and provides playback controls.
-
-## Manual Installation
-
-1. Download the latest release from the [Releases](https://github.com/valentderah/media-manager/releases) page
-2. Extract the `ru.valentderah.current-media.sdPlugin` folder
-3. Open Stream Deck application
-4. Go to the Stream Deck Store (three dots menu) and click "More Actions" → "Install from Disk"
-5. Select the `ru.valentderah.current-media.sdPlugin` folder
-
-## Plugin in Store
-Coming soon to Elgato Store...
+A Stream Deck plugin that displays information about the currently playing media from various sources and provides advanced playback controls.
 
 ## Features
 
-- Plugin displays information about currently playing media with album art, title, and artists. (Has 2x2 cells mode)
-- Provides ability to navigate between media and play/pause controls.
+- **Dynamic Display**: Shows the cover art, title, and artist, as well as the source: Spotify, Chrome, etc.
+- **Large Cover Art Mode**: Combine a 2x2 grid of keys to display a single large cover image.
+- **Playback Controls**: Dedicated actions for Play/Pause, Next, and Previous track.
+- **Seek Functionality**: Actions for seeking forward/backward.
+- **Fully Customizable**: Configure what happens on key press, whether to display the media source, title, or artist, etc.
+- **Wide Compatibility**: Works with any application that integrates with the Windows Media Session API (e.g., Spotify, Chrome, Yandex Music).
 
 ## Requirements
 
-- **Elgato Stream Deck Software**: 6.9 or higher
+- **Elgato Stream Deck Software**: Version 6.9 or higher
 - **Operating System**: Windows 10 or higher
-- **Media Players**: Any application compatible with Windows Media Session API (including Spotify, Yandex Music, VLC, Windows Media Player, and many others)
+
+## Manual Installation
+
+1. Download the latest version from the [Releases](https://github.com/valentderah/stream-deck-current-media/releases) page.
+2. Double-click the downloaded `.streamDeckPlugin` file to install.
+
+## Plugin in the Store
+Coming soon to the Elgato Marketplace.
