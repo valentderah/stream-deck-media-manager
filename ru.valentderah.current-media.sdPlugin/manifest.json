@@ -95,7 +95,7 @@
 			]
 		}
 	],
-	"Category": "Current Media",
+	"Category": "Current Media (Now Playing)",
 	"CategoryIcon": "imgs/plugin/category-icon",
 	"CodePath": "bin/plugin.js",
 	"Description": "This plugin displays cover for the active media player (Chrome, YouTube, Spotify, Yandex Music, etc.) and allows you to control playback directly from Stream Deck.",
