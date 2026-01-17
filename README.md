@@ -1,4 +1,4 @@
-[English](README.md) | Russian
+[English](README.md) | [Русский](README.ru.md)
 
 # Current Media (Now Playing)
 
